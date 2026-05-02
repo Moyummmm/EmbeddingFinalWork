@@ -166,6 +166,8 @@ void Server::handle_read(int fd) {
     while (true) {
         auto payload = try_decode_frame(conn.recv_buf);
         if (!payload) break;
+        std::cout << "[frame_decoded] fd=" << fd << " payload_size=" << payload->size()
+                  << " remaining_buf=" << conn.recv_buf.size() << std::endl;
         process_message(fd, *payload);
     }
 }
@@ -175,7 +177,13 @@ void Server::handle_write(int fd) {
     if (it == _connections.end()) return;
     auto& conn = it->second;
 
-    if (conn.send_buf.empty()) return;
+    if (conn.send_buf.empty()) {
+        std::cout << "[write] fd=" << fd << " send_buf empty, nothing to write" << std::endl;
+        return;
+    }
+
+    std::cout << "[write] fd=" << fd << " send_buf_size=" << conn.send_buf.size()
+              << " send_offset=" << conn.send_offset << std::endl;
 
     while (conn.send_offset < conn.send_buf.size()) {
         ssize_t n = write(fd,
@@ -183,18 +191,22 @@ void Server::handle_write(int fd) {
                           conn.send_buf.size() - conn.send_offset);
         if (n > 0) {
             conn.send_offset += static_cast<size_t>(n);
+            std::cout << "[write] fd=" << fd << " wrote " << n << " bytes, offset now " << conn.send_offset << std::endl;
         } else if (n == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            std::cout << "[write] fd=" << fd << " EAGAIN, will retry via EPOLLOUT" << std::endl;
             struct epoll_event ev{};
             ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
             ev.data.fd = fd;
             epoll_ctl(_epoll_fd, EPOLL_CTL_MOD, fd, &ev);
             return;
         } else {
+            std::cerr << "[write] fd=" << fd << " error: " << strerror(errno) << std::endl;
             close_connection(fd);
             return;
         }
     }
 
+    std::cout << "[write] fd=" << fd << " all " << conn.send_buf.size() << " bytes sent" << std::endl;
     conn.send_buf.clear();
     conn.send_offset = 0;
     struct epoll_event ev{};
@@ -211,6 +223,9 @@ void Server::process_message(int fd, const std::string& json_str) {
     try {
         auto j = nlohmann::json::parse(json_str);
         std::string type = j.at("type").get<std::string>();
+
+        std::cout << "[recv] fd=" << fd << " from " << conn.peer_ip << ":" << conn.peer_port
+                  << " type=" << type << " payload_size=" << json_str.size() << std::endl;
 
         if (type == "register") {
             auto req = j.get<Request>();
@@ -270,12 +285,25 @@ void Server::process_message(int fd, const std::string& json_str) {
             std::string tk = peer_key(target_ip, target_port);
             auto fd_it = _peer_fds.find(tk);
 
+            std::cout << "[browse] from fd=" << fd << " (" << conn.peer_ip << ")"
+                      << " -> target=" << tk
+                      << " path=\"" << path << "\""
+                      << " target_fd_found=" << (fd_it != _peer_fds.end())
+                      << std::endl;
+
+            // 列出当前所有 peer_fds 以便调试
+            std::cout << "[browse] current _peer_fds (" << _peer_fds.size() << "):" << std::endl;
+            for (auto& kv : _peer_fds) {
+                std::cout << "  " << kv.first << " -> fd=" << kv.second << std::endl;
+            }
+
             if (fd_it == _peer_fds.end()) {
                 // Target peer not connected
                 nlohmann::json resp;
                 resp["type"] = "browse_result";
                 resp["path"] = path;
                 resp["error"] = "Target peer not found or offline";
+                std::cout << "[browse] ERROR: target " << tk << " not in _peer_fds" << std::endl;
                 send_response(fd, resp.dump());
             } else {
                 int req_id = _next_req_id++;
@@ -287,8 +315,8 @@ void Server::process_message(int fd, const std::string& json_str) {
                 fwd["path"] = path;
                 fwd["req_id"] = req_id;
 
-                std::cout << "[browse] " << conn.peer_ip << " -> " << tk
-                          << " path=" << path << " req_id=" << req_id << std::endl;
+                std::cout << "[browse] forwarding to target fd=" << fd_it->second
+                          << " req_id=" << req_id << " fwd_json=" << fwd.dump() << std::endl;
 
                 send_response(fd_it->second, fwd.dump());
             }
@@ -314,10 +342,18 @@ void Server::process_message(int fd, const std::string& json_str) {
                 }
 
                 std::cout << "[browse_response] req_id=" << req_id
-                          << " -> forwarding to requester fd=" << requester_fd << std::endl;
+                          << " -> forwarding to requester fd=" << requester_fd
+                          << " entries_count=" << (j.contains("entries") ? j["entries"].size() : 0)
+                          << " error=" << j.value("error", std::string(""))
+                          << std::endl;
 
                 send_response(requester_fd, result.dump());
             }
+        } else {
+            // 未知消息类型：输出日志以便调试
+            std::cout << "[WARN] unknown message type: \"" << type
+                      << "\" from fd=" << fd << " (" << conn.peer_ip << ")"
+                      << " full_json=" << json_str << std::endl;
         }
         // unknown type: silently ignored
 
@@ -330,10 +366,18 @@ void Server::process_message(int fd, const std::string& json_str) {
 
 void Server::send_response(int fd, const std::string& json_str) {
     auto it = _connections.find(fd);
-    if (it == _connections.end()) return;
+    if (it == _connections.end()) {
+        std::cout << "[send_response] fd=" << fd << " NOT FOUND in _connections, dropping" << std::endl;
+        return;
+    }
     auto& conn = it->second;
 
-    conn.send_buf += encode_frame(json_str);
+    std::string frame = encode_frame(json_str);
+    std::cout << "[send] fd=" << fd << " to " << conn.peer_ip << ":" << conn.peer_port
+              << " frame_size=" << frame.size() << " json_size=" << json_str.size()
+              << " json_preview=" << json_str.substr(0, 200) << std::endl;
+
+    conn.send_buf += frame;
     conn.send_offset = 0;
     handle_write(fd);
 }

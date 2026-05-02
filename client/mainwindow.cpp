@@ -12,6 +12,7 @@
 #include <QHostInfo>
 #include <QStandardPaths>
 #include <QFileInfo>
+#include <QDebug>
 #include <random>
 
 // ============================================================
@@ -218,6 +219,8 @@ void MainWindow::onRegisterClicked() {
     QString host = _serverIpEdit->text().trimmed();
     quint16 port = static_cast<quint16>(_serverPortSpin->value());
 
+    qDebug() << "[MainWindow] onRegisterClicked: host=" << host << " port=" << port
+             << " name=" << _nameEdit->text() << " p2pPort=" << _p2pPortSpin->value();
     _registry->connectToServer(host, port);
     // onRegConnected 会在连接成功后自动调用 registerPeer()
 }
@@ -300,6 +303,8 @@ void MainWindow::onSendClicked() {
 
 // 连接成功后自动注册本节点
 void MainWindow::onRegConnected() {
+    qDebug() << "[MainWindow] onRegConnected, registering as" << _nameEdit->text()
+             << " p2pPort=" << _p2pPortSpin->value();
     _registry->registerPeer(_nameEdit->text().trimmed(),
                             static_cast<quint16>(_p2pPortSpin->value()));
 }
@@ -319,9 +324,14 @@ void MainWindow::onRegRegisterAck(const std::vector<PeerInfo>& peers) {
     // 通过名称和端口匹配找到自己的条目（服务器确定了我们的 IP）
     std::string myName = _nameEdit->text().trimmed().toStdString();
     int myPort = _p2pPortSpin->value();
+    qDebug() << "[MainWindow] onRegRegisterAck: peers=" << peers.size()
+             << " myName=" << QString::fromStdString(myName) << " myPort=" << myPort;
     for (const auto& p : peers) {
+        qDebug() << "  peer:" << QString::fromStdString(p.name)
+                 << QString::fromStdString(p.ip) << ":" << p.port;
         if (p.name == myName && p.port == myPort) {
             _selfInfo = p;
+            qDebug() << "  -> matched self: ip=" << QString::fromStdString(p.ip);
             break;
         }
     }
@@ -449,6 +459,8 @@ void MainWindow::onPeerDoubleClicked(QListWidgetItem* item) {
     quint16 port = static_cast<quint16>(item->data(Qt::UserRole + 1).toInt());
     QString name = item->data(Qt::UserRole + 2).toString();
 
+    qDebug() << "[MainWindow] onPeerDoubleClicked: ip=" << ip << " port=" << port << " name=" << name;
+
     // 更新选中的对端节点
     _selectedPeer.ip = ip.toStdString();
     _selectedPeer.port = port;
@@ -472,6 +484,7 @@ void MainWindow::onPeerDoubleClicked(QListWidgetItem* item) {
 
 // 收到远程目录列表：填充远程模型
 void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<DirEntry>& entries) {
+    qDebug() << "[MainWindow] onRemoteListingReceived: path=" << path << " entries=" << entries.size();
     _remotePath = path;
     _remotePathLabel->setText(QStringLiteral("远端: %1").arg(path));
     _remoteModel->removeRows(0, _remoteModel->rowCount());
@@ -493,6 +506,7 @@ void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<
 
 // 远端浏览错误
 void MainWindow::onRemoteBrowseError(const QString& message) {
+    qDebug() << "[MainWindow] onRemoteBrowseError:" << message;
     _remotePathLabel->setText(QStringLiteral("远端浏览错误: %1").arg(message));
 }
 
@@ -507,6 +521,9 @@ void MainWindow::onRemoteItemDoubleClicked(const QModelIndex& index) {
 
     QString dirName = nameIndex.data(Qt::DisplayRole).toString();
     QString newPath = _remotePath + QStringLiteral("/") + dirName;
+
+    qDebug() << "[MainWindow] onRemoteItemDoubleClicked: dirName=" << dirName
+             << " newPath=" << newPath;
 
     // 保存对端信息（清空列表前）
     QString peerIp = QString::fromStdString(_selectedPeer.ip);

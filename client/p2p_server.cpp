@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QDebug>
 
 P2PServer::P2PServer(QObject* parent)
     : QObject(parent)
@@ -29,12 +30,14 @@ bool P2PServer::startListening(quint16 port) {
     connect(_server, &QTcpServer::newConnection, this, &P2PServer::onNewConnection);
 
     if (!_server->listen(QHostAddress::AnyIPv4, port)) {
+        qDebug() << "[P2PServer] listen FAILED on port" << port << ":" << _server->errorString();
         emit errorOccurred(QStringLiteral("P2P 监听失败: ") + _server->errorString());
         _server->deleteLater();
         _server = nullptr;
         return false;
     }
 
+    qDebug() << "[P2PServer] listening on port" << _server->serverPort();
     emit listeningStarted(_server->serverPort());
     return true;
 }
@@ -66,6 +69,9 @@ void P2PServer::onNewConnection() {
         QTcpSocket* socket = _server->nextPendingConnection();
         if (!socket) continue;
 
+        qDebug() << "[P2PServer] new connection from" << socket->peerAddress().toString()
+                 << ":" << socket->peerPort();
+
         connect(socket, &QTcpSocket::readyRead, this, &P2PServer::onReadyRead);
         connect(socket, &QTcpSocket::disconnected, this, &P2PServer::onDisconnected);
 
@@ -84,7 +90,11 @@ void P2PServer::onReadyRead() {
     if (it == _sessions.end()) return;
 
     RecvSession& sess = it.value();
-    sess.recvBuf.append(QString::fromUtf8(socket->readAll()));
+    QByteArray rawData = socket->readAll();
+    qDebug() << "[P2PServer] onReadyRead: received" << rawData.size() << "bytes from"
+             << socket->peerAddress().toString() << ":" << socket->peerPort();
+
+    sess.recvBuf.append(QString::fromUtf8(rawData));
 
     std::string buf = sess.recvBuf.toStdString();
 
@@ -93,6 +103,7 @@ void P2PServer::onReadyRead() {
         auto payload = try_decode_frame(buf);
         if (!payload) break;
         sess.recvBuf = QString::fromStdString(buf);
+        qDebug() << "[P2PServer] decoded frame, payload_size=" << payload->size();
         processMessage(socket, *payload);
     }
 }
@@ -101,6 +112,9 @@ void P2PServer::onReadyRead() {
 void P2PServer::onDisconnected() {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
+
+    qDebug() << "[P2PServer] disconnected:" << socket->peerAddress().toString()
+             << ":" << socket->peerPort();
 
     auto it = _sessions.find(socket);
     if (it == _sessions.end()) return;
@@ -126,6 +140,10 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
     try {
         auto j = nlohmann::json::parse(jsonStr);
         std::string type = j.at("type").get<std::string>();
+
+        qDebug() << "[P2PServer] processMessage: type=" << QString::fromStdString(type)
+                 << " from" << socket->peerAddress().toString()
+                 << " json=" << QString::fromStdString(jsonStr).left(300);
 
         if (type == "push_hello") {
             // 收到推送握手：记录预期文件数，回复就绪确认
@@ -257,9 +275,13 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
                 ? QDir::homePath()
                 : QString::fromStdString(req.path);
 
+            qDebug() << "[P2PServer] list_request: requested_path=" << QString::fromStdString(req.path)
+                     << " resolved=" << browsePath;
+
             QDir dir(browsePath);
             if (!dir.exists()) {
                 resp.error = "目录未找到: " + req.path;
+                qDebug() << "[P2PServer] list_request: directory not found!";
             } else {
                 // 列出所有文件和目录（包含隐藏文件，目录优先排序）
                 QFileInfoList entries = dir.entryInfoList(
@@ -272,16 +294,21 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
                     de.size = fi.isDir() ? 0 : static_cast<uint64_t>(fi.size());
                     resp.entries.push_back(std::move(de));
                 }
+                qDebug() << "[P2PServer] list_request: found" << entries.size() << "entries";
             }
 
             // 发送响应后断开连接（一次性浏览）
             std::string frame = encode_frame(nlohmann::json(resp).dump());
+            qDebug() << "[P2PServer] list_request: sending response, frame_size=" << frame.size();
             socket->write(frame.data(), static_cast<qint64>(frame.size()));
             socket->flush();
             socket->disconnectFromHost();
 
+        } else {
+            qDebug() << "[P2PServer] WARNING: unknown message type:" << QString::fromStdString(type);
         }
     } catch (const std::exception& e) {
+        qDebug() << "[P2PServer] processMessage EXCEPTION:" << e.what();
         emit errorOccurred(QString::fromStdString(e.what()));
     }
 }

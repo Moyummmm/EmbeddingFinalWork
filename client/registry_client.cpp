@@ -43,11 +43,16 @@ void RegistryClient::registerPeer(const QString& name, quint16 p2pPort) {
     _peerName = name;
     _pendingOp = Op::Register;
 
-    // Don't send ip — server determines it from the TCP connection
+    // Send our local IP so other peers can connect to us directly.
+    // The server-determined IP (from TCP connection) may be a NAT gateway IP
+    // that other peers cannot reach, so we prefer our own local address.
     nlohmann::json j;
     j["type"] = "register";
     j["port"] = p2pPort;
     j["name"] = name.toStdString();
+    if (!_localIp.isEmpty()) {
+        j["ip"] = _localIp.toStdString();
+    }
 
     sendMessage(j.dump());
 }
@@ -72,10 +77,12 @@ void RegistryClient::unregisterPeer() {
     }
     _pendingOp = Op::Unregister;
 
-    // Don't send ip — server determines it from the TCP connection
     nlohmann::json j;
     j["type"] = "unregister";
     j["port"] = static_cast<int>(_localPort);
+    if (!_localIp.isEmpty()) {
+        j["ip"] = _localIp.toStdString();
+    }
 
     sendMessage(j.dump());
 }

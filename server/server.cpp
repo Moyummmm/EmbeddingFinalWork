@@ -212,9 +212,13 @@ void Server::process_message(int fd, const std::string& json_str) {
         auto req = nlohmann::json::parse(json_str).get<Request>();
 
         if (req.type == "register") {
-            // Use the IP from the TCP connection, not from the client message
+            // Prefer client-reported IP over the TCP connection's peer IP.
+            // The TCP peer IP may be a NAT gateway address that other peers
+            // cannot reach directly. The client reports its own local IP
+            // (from its socket's localAddress) which is the actual address
+            // other peers on the same network can use.
             PeerInfo peer;
-            peer.ip = conn.peer_ip;
+            peer.ip = req.ip.empty() ? conn.peer_ip : req.ip;
             peer.port = req.port;
             peer.name = req.name;
 
@@ -242,8 +246,9 @@ void Server::process_message(int fd, const std::string& json_str) {
             send_response(fd, nlohmann::json(resp).dump());
 
         } else if (req.type == "unregister") {
-            // Use the IP from the TCP connection, not from the client message
-            bool ok = _registry.unregister_peer(conn.peer_ip, req.port);
+            // Use the same IP logic as register
+            std::string effectiveIp = req.ip.empty() ? conn.peer_ip : req.ip;
+            bool ok = _registry.unregister_peer(effectiveIp, req.port);
 
             Response resp;
             resp.type = "unregister_ack";

@@ -57,7 +57,7 @@ MainWindow::MainWindow(QWidget* parent)
     QHBoxLayout* configLayout = new QHBoxLayout();
 
     configLayout->addWidget(new QLabel(QStringLiteral("Server IP:")));
-    _serverIpEdit = new QLineEdit(QStringLiteral("192.168.1.100"));
+    _serverIpEdit = new QLineEdit(QStringLiteral("127.0.0.1"));
     _serverIpEdit->setMaximumWidth(140);
     configLayout->addWidget(_serverIpEdit);
 

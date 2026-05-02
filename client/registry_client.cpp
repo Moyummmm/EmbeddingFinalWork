@@ -273,6 +273,17 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             std::string payload = j.value("payload", std::string(""));
             emit transferRelayMessage(relayId, payload);
 
+        } else if (type == "pull_fwd") {
+            // 收到拉取请求（对端请求本机发送指定文件）
+            int relayId = j.value("relay_id", 0);
+            std::vector<std::string> filePaths;
+            if (j.contains("file_paths")) {
+                filePaths = j["file_paths"].get<std::vector<std::string>>();
+            }
+            qDebug() << "[RegistryClient] pull_fwd: relayId=" << relayId
+                     << " files=" << filePaths.size();
+            emit pullForwardReceived(relayId, filePaths);
+
         } else {
             qDebug() << "[RegistryClient] WARNING: unknown message type:" << QString::fromStdString(type);
         }
@@ -364,5 +375,24 @@ void RegistryClient::sendTransferRelay(int relayId, const std::string& payload) 
     j["relay_id"] = relayId;
     j["payload"] = payload;
 
+    sendMessage(j.dump());
+}
+
+// 发送拉取请求：请求对端将指定文件发送到本机
+void RegistryClient::sendPullRequest(const QString& targetIp, quint16 targetPort,
+                                      const std::vector<std::string>& filePaths) {
+    if (_state != State::Connected) {
+        emit errorOccurred(QStringLiteral("未连接到注册服务器"));
+        return;
+    }
+
+    nlohmann::json j;
+    j["type"] = "pull_request";
+    j["target_ip"] = targetIp.toStdString();
+    j["target_port"] = targetPort;
+    j["file_paths"] = filePaths;
+
+    qDebug() << "[RegistryClient] sendPullRequest: target=" << targetIp << ":" << targetPort
+             << " files=" << filePaths.size();
     sendMessage(j.dump());
 }

@@ -276,6 +276,47 @@ void Server::process_message(int fd, const std::string& json_str) {
 
             send_response(fd, nlohmann::json(resp).dump());
 
+        } else if (type == "pull_request") {
+            // Requester wants to pull files from a target peer
+            std::string target_ip = j.value("target_ip", std::string(""));
+            int target_port = j.value("target_port", 0);
+            std::vector<std::string> file_paths;
+            if (j.contains("file_paths")) {
+                file_paths = j["file_paths"].get<std::vector<std::string>>();
+            }
+
+            std::string tk = peer_key(target_ip, target_port);
+            auto fd_it = _peer_fds.find(tk);
+
+            std::cout << "[pull_request] from fd=" << fd << " (" << conn.peer_ip << ")"
+                      << " -> target=" << tk
+                      << " files=" << file_paths.size()
+                      << " target_fd_found=" << (fd_it != _peer_fds.end())
+                      << std::endl;
+
+            if (fd_it == _peer_fds.end()) {
+                nlohmann::json resp;
+                resp["type"] = "transfer_accept";
+                resp["relay_id"] = 0;
+                resp["accepted"] = false;
+                send_response(fd, resp.dump());
+            } else {
+                int relay_id = _next_relay_id++;
+                // For pull: sender is target (who has the files), requester is receiver
+                _transfer_relays[relay_id] = {fd_it->second, fd};
+
+                nlohmann::json fwd;
+                fwd["type"] = "pull_fwd";
+                fwd["relay_id"] = relay_id;
+                fwd["file_paths"] = file_paths;
+
+                std::cout << "[pull_request] relay_id=" << relay_id
+                          << " sender_fd=" << fd_it->second << " target_fd=" << fd
+                          << " forwarding pull_fwd" << std::endl;
+
+                send_response(fd_it->second, fwd.dump());
+            }
+
         } else if (type == "browse_request" || type == "browse") {
             // Relay browse request: client wants to browse a remote peer's filesystem
             std::string target_ip = j.value("target_ip", std::string(""));

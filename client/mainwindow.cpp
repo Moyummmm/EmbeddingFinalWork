@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
     setWindowTitle(QStringLiteral("P2P 文件传输 — [未注册]"));
-    resize(1100, 700);
+    resize(1200, 700);
 
     // --- 创建核心模块 ---
     _registry = new RegistryClient(this);
@@ -47,7 +47,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(_transfer, &P2PTransfer::transferFinished, this, &MainWindow::onTransferFinished);
     connect(_transfer, &P2PTransfer::errorOccurred, this, &MainWindow::onTransferError);
 
-    // 浏览信号连接（通过注册服务器中转）
+    // 浏览信号连接
     connect(_registry, &RegistryClient::browseResult, this, &MainWindow::onRemoteListingReceived);
     connect(_registry, &RegistryClient::browseError, this, &MainWindow::onRemoteBrowseError);
 
@@ -55,6 +55,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(_registry, &RegistryClient::transferForwardReceived, this, &MainWindow::onTransferForwardReceived);
     connect(_registry, &RegistryClient::transferAccepted, this, &MainWindow::onTransferAccepted);
     connect(_registry, &RegistryClient::transferRelayMessage, this, &MainWindow::onTransferRelayMessage);
+    connect(_registry, &RegistryClient::pullForwardReceived, this, &MainWindow::onPullForwardReceived);
 
     // --- 中央控件 ---
     QWidget* central = new QWidget(this);
@@ -86,7 +87,6 @@ MainWindow::MainWindow(QWidget* parent)
     configLayout->addWidget(new QLabel(QStringLiteral("P2P 端口:")));
     _p2pPortSpin = new QSpinBox();
     _p2pPortSpin->setRange(1024, 65535);
-    // 随机生成默认端口号，避免多实例冲突
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dist(20000, 40000);
@@ -96,7 +96,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     _registerBtn = new QPushButton(QStringLiteral("注册"));
     _unregisterBtn = new QPushButton(QStringLiteral("注销"));
-    _refreshBtn = new QPushButton(QStringLiteral("刷新对端"));
+    _refreshBtn = new QPushButton(QStringLiteral("刷新"));
     configLayout->addWidget(_registerBtn);
     configLayout->addWidget(_unregisterBtn);
     configLayout->addWidget(_refreshBtn);
@@ -104,89 +104,101 @@ MainWindow::MainWindow(QWidget* parent)
 
     mainLayout->addLayout(configLayout);
 
-    // ===== 中部：分割器（对端列表 | → | 文件树） =====
+    // ===== 中部：三栏分割器 =====
     QSplitter* splitter = new QSplitter(Qt::Horizontal);
 
-    // 左侧：对端节点列表
+    // --- 左栏：本机文件 ---
     QWidget* leftPanel = new QWidget();
     QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
     leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->addWidget(new QLabel(QStringLiteral("对端节点")));
-    _peerList = new QListWidget();
-    _peerList->addItem(QStringLiteral("未注册，请点击上方注册按钮"));
-    leftLayout->addWidget(_peerList);
+
+    _localPathLabel = new QLabel(QStringLiteral("本机文件"));
+    _localPathLabel->setStyleSheet(QStringLiteral("font-weight: bold; padding: 4px;"));
+    leftLayout->addWidget(_localPathLabel);
+
+    _localModel = new QFileSystemModel(this);
+    _localModel->setRootPath(QDir::homePath());
+    _localModel->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
+
+    _localTree = new QTreeView();
+    _localTree->setModel(_localModel);
+    _localTree->setRootIndex(_localModel->index(QDir::homePath()));
+    _localTree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    _localTree->setColumnWidth(0, 250);
+    for (int i = 1; i < _localModel->columnCount(); ++i) {
+        _localTree->hideColumn(i);
+    }
+    connect(_localTree, &QTreeView::doubleClicked, this, &MainWindow::onLocalItemDoubleClicked);
+    leftLayout->addWidget(_localTree);
+
     splitter->addWidget(leftPanel);
 
-    // 中间：发送方向箭头按钮
+    // --- 中间：箭头按钮 ---
     QWidget* midPanel = new QWidget();
     QVBoxLayout* midLayout = new QVBoxLayout(midPanel);
     midLayout->setAlignment(Qt::AlignCenter);
-    _sendBtn = new QPushButton(QStringLiteral("→"));
-    _sendBtn->setFixedSize(50, 50);
-    _sendBtn->setEnabled(false);
-    _sendBtn->setToolTip(QStringLiteral("发送到选中的对端节点"));
-    midLayout->addWidget(_sendBtn);
+    midLayout->addStretch();
+
+    _sendRightBtn = new QPushButton(QStringLiteral("→"));
+    _sendRightBtn->setFixedSize(60, 50);
+    _sendRightBtn->setToolTip(QStringLiteral("发送选中文件到远端"));
+    _sendRightBtn->setEnabled(false);
+    midLayout->addWidget(_sendRightBtn);
+    midLayout->addSpacing(10);
+
+    _sendLeftBtn = new QPushButton(QStringLiteral("←"));
+    _sendLeftBtn->setFixedSize(60, 50);
+    _sendLeftBtn->setToolTip(QStringLiteral("从远端拉取选中文件到本机"));
+    _sendLeftBtn->setEnabled(false);
+    midLayout->addWidget(_sendLeftBtn);
+
+    midLayout->addStretch();
     splitter->addWidget(midPanel);
 
-    // 右侧：本地文件系统树 / 远程浏览器
+    // --- 右栏：远端文件 ---
     QWidget* rightPanel = new QWidget();
     QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(0, 0, 0, 0);
 
-    // 右侧面板标题栏：显示当前模式（本地/远程）
-    QHBoxLayout* rightHeaderLayout = new QHBoxLayout();
-    _remotePathLabel = new QLabel(QStringLiteral("本机文件系统"));
-    rightHeaderLayout->addWidget(_remotePathLabel);
-    _localBtn = new QPushButton(QStringLiteral("返回本地"));
-    _localBtn->setVisible(false);
-    rightHeaderLayout->addWidget(_localBtn);
-    rightHeaderLayout->addStretch();
-    rightLayout->addLayout(rightHeaderLayout);
+    // 对端选择下拉框
+    QHBoxLayout* peerLayout = new QHBoxLayout();
+    peerLayout->addWidget(new QLabel(QStringLiteral("远端:")));
+    _peerCombo = new QComboBox();
+    _peerCombo->addItem(QStringLiteral("未注册"), QVariant());
+    _peerCombo->setEnabled(false);
+    connect(_peerCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onPeerComboChanged);
+    peerLayout->addWidget(_peerCombo);
+    rightLayout->addLayout(peerLayout);
 
-    // 本地文件系统模型
-    _fileModel = new QFileSystemModel(this);
-    _fileModel->setRootPath(QDir::rootPath());
-    _fileModel->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
+    _remotePathLabel = new QLabel(QStringLiteral("选择对端后浏览"));
+    _remotePathLabel->setStyleSheet(QStringLiteral("font-weight: bold; padding: 4px;"));
+    rightLayout->addWidget(_remotePathLabel);
 
-    // 远程目录列表模型的表头
     _remoteModel->setHorizontalHeaderLabels({QStringLiteral("名称"), QStringLiteral("大小")});
 
-    // 文件/目录树形视图
-    _fileTree = new QTreeView();
-    _fileTree->setModel(_fileModel);
-    _fileTree->setRootIndex(_fileModel->index(QDir::homePath()));
-    _fileTree->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    _fileTree->setColumnWidth(0, 300);
-    // 只显示名称列，隐藏大小/类型/日期列
-    for (int i = 1; i < _fileModel->columnCount(); ++i) {
-        _fileTree->hideColumn(i);
-    }
-    rightLayout->addWidget(_fileTree);
-
-    // 选择文件/文件夹按钮
-    QHBoxLayout* fileBtnLayout = new QHBoxLayout();
-    _selectFileBtn = new QPushButton(QStringLiteral("选择文件"));
-    _selectFolderBtn = new QPushButton(QStringLiteral("选择文件夹"));
-    fileBtnLayout->addWidget(_selectFileBtn);
-    fileBtnLayout->addWidget(_selectFolderBtn);
-    fileBtnLayout->addStretch();
-    rightLayout->addLayout(fileBtnLayout);
+    _remoteTree = new QTreeView();
+    _remoteTree->setModel(_remoteModel);
+    _remoteTree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    _remoteTree->setColumnWidth(0, 250);
+    connect(_remoteTree, &QTreeView::doubleClicked, this, &MainWindow::onRemoteItemDoubleClicked);
+    rightLayout->addWidget(_remoteTree);
 
     splitter->addWidget(rightPanel);
 
-    // 设置分割比例：左侧1，中间自适应，右侧3
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 0);
-    splitter->setStretchFactor(2, 3);
+    // 设置分割比例：左4，中1，右4
+    splitter->setStretchFactor(0, 4);
+    splitter->setStretchFactor(1, 1);
+    splitter->setStretchFactor(2, 4);
 
     mainLayout->addWidget(splitter, 1);
 
-    // ===== 底部：传输队列表格 =====
+    // ===== 底部：传输队列 =====
     mainLayout->addWidget(new QLabel(QStringLiteral("传输队列")));
     _transferQueue = new QTableWidget(0, 5);
     _transferQueue->setHorizontalHeaderLabels({
         QStringLiteral("文件名"),
-        QStringLiteral("目标"),
+        QStringLiteral("方向"),
         QStringLiteral("大小"),
         QStringLiteral("进度"),
         QStringLiteral("状态")
@@ -198,10 +210,9 @@ MainWindow::MainWindow(QWidget* parent)
     _transferQueue->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     _transferQueue->setSelectionBehavior(QAbstractItemView::SelectRows);
     _transferQueue->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    _transferQueue->setMaximumHeight(180);
+    _transferQueue->setMaximumHeight(160);
     mainLayout->addWidget(_transferQueue);
 
-    // 接收文件保存路径提示
     _receivePathLabel = new QLabel(QStringLiteral("接收文件保存位置: ") +
         QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
         + QStringLiteral("/P2P_Received/"));
@@ -213,15 +224,8 @@ MainWindow::MainWindow(QWidget* parent)
     connect(_registerBtn, &QPushButton::clicked, this, &MainWindow::onRegisterClicked);
     connect(_unregisterBtn, &QPushButton::clicked, this, &MainWindow::onUnregisterClicked);
     connect(_refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshClicked);
-    connect(_sendBtn, &QPushButton::clicked, this, &MainWindow::onSendClicked);
-    connect(_selectFileBtn, &QPushButton::clicked, this, &MainWindow::onSelectFilesClicked);
-    connect(_selectFolderBtn, &QPushButton::clicked, this, &MainWindow::onSelectFolderClicked);
-    connect(_peerList, &QListWidget::itemSelectionChanged, this, &MainWindow::updateButtonStates);
-    connect(_peerList, &QListWidget::itemDoubleClicked, this, &MainWindow::onPeerDoubleClicked);
-    connect(_localBtn, &QPushButton::clicked, this, &MainWindow::onLocalBtnClicked);
-    connect(_fileTree, &QTreeView::doubleClicked, this, &MainWindow::onRemoteItemDoubleClicked);
-
-    updateButtonStates();
+    connect(_sendRightBtn, &QPushButton::clicked, this, &MainWindow::onSendRight);
+    connect(_sendLeftBtn, &QPushButton::clicked, this, &MainWindow::onSendLeft);
 }
 
 MainWindow::~MainWindow() = default;
@@ -230,198 +234,116 @@ MainWindow::~MainWindow() = default;
 //  按钮槽函数
 // ============================================================
 
-// 注册按钮：连接到注册服务器，连接成功后自动注册
 void MainWindow::onRegisterClicked() {
     QString host = _serverIpEdit->text().trimmed();
     quint16 port = static_cast<quint16>(_serverPortSpin->value());
-
     qDebug() << "[MainWindow] onRegisterClicked: host=" << host << " port=" << port
              << " name=" << _nameEdit->text() << " p2pPort=" << _p2pPortSpin->value();
     _registry->connectToServer(host, port);
-    // onRegConnected 会在连接成功后自动调用 registerPeer()
 }
 
-// 注销按钮：从注册服务器注销本节点
 void MainWindow::onUnregisterClicked() {
     _registry->unregisterPeer();
 }
 
-// 刷新按钮：向注册服务器查询当前在线节点
 void MainWindow::onRefreshClicked() {
     _registry->queryPeers();
-}
-
-// 选择文件按钮：弹出文件选择对话框
-void MainWindow::onSelectFilesClicked() {
-    QStringList files = QFileDialog::getOpenFileNames(this, QStringLiteral("选择文件"),
-                                                       QDir::homePath());
-    for (const QString& f : files) {
-        addFileToSelected(f);
-    }
-}
-
-// 选择文件夹按钮：弹出文件夹选择对话框
-void MainWindow::onSelectFolderClicked() {
-    QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("选择文件夹"),
-                                                     QDir::homePath());
-    if (!dir.isEmpty()) {
-        addFileToSelected(dir);
-    }
-}
-
-// 发送按钮：将选中的文件发送到对端节点
-void MainWindow::onSendClicked() {
-    if (!_selectedPeer.ip.empty() && _selectedPeer.port > 0) {
-        if (_transfer->isBusy()) {
-            // 传输正在进行中，暂不支持追加队列
-        }
-
-        if (_selectedFiles.isEmpty()) {
-            QMessageBox::information(this, QStringLiteral("提示"),
-                                     QStringLiteral("请先选择要发送的文件"));
-            return;
-        }
-
-        // 展开目录为文件列表
-        QStringList allFiles;
-        for (const QString& path : _selectedFiles) {
-            QFileInfo fi(path);
-            if (fi.isDir()) {
-                allFiles.append(expandDirectory(path));
-            } else if (fi.isFile()) {
-                allFiles.append(path);
-            }
-        }
-
-        if (allFiles.isEmpty()) {
-            QMessageBox::information(this, QStringLiteral("提示"),
-                                     QStringLiteral("没有可发送的文件"));
-            return;
-        }
-
-        // 将文件添加到传输队列表格
-        addToTransferQueue(allFiles);
-
-        // 通过服务器中转发起文件传输请求
-        if (!_transfer->isBusy()) {
-            _pendingRelayFiles = allFiles;
-            _registry->sendTransferRequest(
-                QString::fromStdString(_selectedPeer.ip),
-                static_cast<quint16>(_selectedPeer.port),
-                allFiles.size());
-        }
-        _selectedFiles.clear();
-    }
 }
 
 // ============================================================
 //  注册客户端信号处理
 // ============================================================
 
-// 连接成功后自动注册本节点
 void MainWindow::onRegConnected() {
-    qDebug() << "[MainWindow] onRegConnected, registering as" << _nameEdit->text()
-             << " p2pPort=" << _p2pPortSpin->value();
+    qDebug() << "[MainWindow] onRegConnected, registering as" << _nameEdit->text();
     _registry->registerPeer(_nameEdit->text().trimmed(),
                             static_cast<quint16>(_p2pPortSpin->value()));
 }
 
-// 连接断开
 void MainWindow::onRegDisconnected() {
     _registered = false;
-    _peerList->clear();
-    _peerList->addItem(QStringLiteral("未注册，请点击上方注册按钮"));
+    _peerCombo->clear();
+    _peerCombo->addItem(QStringLiteral("未注册"), QVariant());
+    _peerCombo->setEnabled(false);
+    _remoteModel->removeRows(0, _remoteModel->rowCount());
+    _remotePathLabel->setText(QStringLiteral("选择对端后浏览"));
     updateWindowTitle();
-    updateButtonStates();
 }
 
-// 注册确认：从返回的节点列表中找到自己的信息
 void MainWindow::onRegRegisterAck(const std::vector<PeerInfo>& peers) {
     _registered = true;
-    // 通过名称和端口匹配找到自己的条目（服务器确定了我们的 IP）
+    _allPeers = peers;
     std::string myName = _nameEdit->text().trimmed().toStdString();
     int myPort = _p2pPortSpin->value();
-    qDebug() << "[MainWindow] onRegRegisterAck: peers=" << peers.size()
-             << " myName=" << QString::fromStdString(myName) << " myPort=" << myPort;
     for (const auto& p : peers) {
-        qDebug() << "  peer:" << QString::fromStdString(p.name)
-                 << QString::fromStdString(p.ip) << ":" << p.port;
         if (p.name == myName && p.port == myPort) {
             _selfInfo = p;
-            qDebug() << "  -> matched self: ip=" << QString::fromStdString(p.ip);
             break;
         }
     }
-
-    updatePeerList(peers);
+    updatePeerCombo();
     updateWindowTitle();
-    updateButtonStates();
 }
 
-// 查询确认：更新对端节点列表
 void MainWindow::onRegQueryAck(const std::vector<PeerInfo>& peers) {
-    updatePeerList(peers);
+    _allPeers = peers;
+    updatePeerCombo();
 }
 
-// 注销确认：断开连接
 void MainWindow::onRegUnregisterAck() {
     _registered = false;
     _registry->disconnectFromServer();
 }
 
-// 注册服务器错误
 void MainWindow::onRegError(const QString& message) {
     _registered = false;
-    updateButtonStates();
     QMessageBox::warning(this, QStringLiteral("Registry 错误"), message);
 }
 
 // ============================================================
-//  P2P 接收服务器信号处理（在 main.cpp 中连接）
+//  P2P 接收服务器信号处理
 // ============================================================
 
-// P2P 服务器开始监听，更新端口显示
 void MainWindow::onP2PListeningStarted(quint16 port) {
     _p2pPortSpin->setValue(static_cast<int>(port));
 }
 
-// 收到文件：在传输队列中显示已接收的文件
 void MainWindow::onP2PFileReceived(const QString& savedPath) {
     QFileInfo fi(savedPath);
     QString fileName = fi.fileName();
 
-    // 添加到传输队列
     int row = _transferQueue->rowCount();
     _transferQueue->insertRow(row);
-
     QTableWidgetItem* nameItem = new QTableWidgetItem(fileName);
     nameItem->setToolTip(savedPath);
     _transferQueue->setItem(row, 0, nameItem);
-
-    _transferQueue->setItem(row, 1, new QTableWidgetItem(QStringLiteral("接收")));
+    _transferQueue->setItem(row, 1, new QTableWidgetItem(QStringLiteral("← 接收")));
     _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(fi.size())));
 
-    // 进度条
     auto* bar = new QProgressBar();
     bar->setRange(0, 100);
     bar->setValue(100);
     bar->setFormat(QStringLiteral("100%"));
     _transferQueue->setCellWidget(row, 3, bar);
-
-    QTableWidgetItem* statusItem = new QTableWidgetItem(QStringLiteral("已接收"));
-    _transferQueue->setItem(row, 4, statusItem);
-
+    _transferQueue->setItem(row, 4, new QTableWidgetItem(QStringLiteral("已接收")));
     _queueEntries[row] = QueueEntry{bar, nullptr};
 
     qDebug() << "[MainWindow] onP2PFileReceived:" << savedPath;
 }
 
-// P2P 传输完成
 void MainWindow::onP2PTransferCompleted(int success, int failed) {
     qDebug() << "[MainWindow] onP2PTransferCompleted: success=" << success << " failed=" << failed;
+    statusBar()->showMessage(
+        QStringLiteral("接收完成: %1 成功, %2 失败").arg(success).arg(failed), 10000);
+    // 刷新远端目录以显示新文件
+    if (!_selectedPeer.ip.empty() && !_remotePath.isEmpty()) {
+        _registry->sendBrowseRequest(
+            QString::fromStdString(_selectedPeer.ip),
+            static_cast<quint16>(_selectedPeer.port),
+            _remotePath);
+    }
 }
 
-// P2P 服务器错误（预留：可用于日志记录）
 void MainWindow::onP2PError(const QString& message) {
     Q_UNUSED(message);
 }
@@ -430,11 +352,9 @@ void MainWindow::onP2PError(const QString& message) {
 //  P2P 文件发送器信号处理
 // ============================================================
 
-// 传输进度更新：更新对应行的进度条
 void MainWindow::onTransferProgress(const QString& fileName, int percent) {
     int row = findQueueRow(fileName);
     if (row < 0) return;
-
     auto it = _queueEntries.find(row);
     if (it != _queueEntries.end() && it->bar) {
         it->bar->setValue(percent);
@@ -442,17 +362,13 @@ void MainWindow::onTransferProgress(const QString& fileName, int percent) {
     }
 }
 
-// 单个文件传输完成：更新状态，保留在队列中供用户查看
 void MainWindow::onTransferFileCompleted(const QString& fileName, const QString& status) {
     int row = findQueueRow(fileName);
     if (row < 0) return;
-
     QTableWidgetItem* statusItem = _transferQueue->item(row, 4);
     if (statusItem) {
         statusItem->setText(status);
     }
-
-    // 更新进度条为 100%
     auto it = _queueEntries.find(row);
     if (it != _queueEntries.end() && it->bar) {
         if (status == QStringLiteral("完成")) {
@@ -460,22 +376,20 @@ void MainWindow::onTransferFileCompleted(const QString& fileName, const QString&
             it->bar->setFormat(QStringLiteral("100%"));
         }
     }
+}
 
-    if (status == QStringLiteral("失败")) {
-        QTableWidgetItem* item = _transferQueue->item(row, 0);
-        if (item) {
-            item->setToolTip(QStringLiteral("传输失败"));
-        }
+void MainWindow::onTransferFinished(int success, int failed) {
+    statusBar()->showMessage(
+        QStringLiteral("发送完成: %1 成功, %2 失败").arg(success).arg(failed), 10000);
+    // 刷新远端目录以显示新文件
+    if (!_selectedPeer.ip.empty() && !_remotePath.isEmpty()) {
+        _registry->sendBrowseRequest(
+            QString::fromStdString(_selectedPeer.ip),
+            static_cast<quint16>(_selectedPeer.port),
+            _remotePath);
     }
 }
 
-// 所有文件传输完成：显示状态栏提示
-void MainWindow::onTransferFinished(int success, int failed) {
-    statusBar()->showMessage(
-        QStringLiteral("传输完成: %1 成功, %2 失败").arg(success).arg(failed), 10000);
-}
-
-// 传输错误
 void MainWindow::onTransferError(const QString& message) {
     QMessageBox::warning(this, QStringLiteral("传输错误"), message);
 }
@@ -484,25 +398,17 @@ void MainWindow::onTransferError(const QString& message) {
 //  文件传输中继
 // ============================================================
 
-// 收到传入的传输请求（作为接收端）：自动接受并准备接收
 void MainWindow::onTransferForwardReceived(int relayId, int fileCount) {
     qDebug() << "[MainWindow] onTransferForwardReceived: relayId=" << relayId
              << " fileCount=" << fileCount;
-
-    // 自动接受传输
     _registry->sendTransferAccept(relayId, true);
-
-    // 启动中转接收模式
     _p2pServer->startRelayReceive(_registry, relayId, fileCount);
 }
 
-// 传输请求被接受/拒绝（作为发送端）
 void MainWindow::onTransferAccepted(int relayId, bool accepted) {
     qDebug() << "[MainWindow] onTransferAccepted: relayId=" << relayId
              << " accepted=" << accepted;
-
     if (accepted) {
-        // 开始中转传输
         _relayTransferId = relayId;
         _transfer->startRelayTransfer(_registry, relayId, _pendingRelayFiles);
         _pendingRelayFiles.clear();
@@ -513,9 +419,8 @@ void MainWindow::onTransferAccepted(int relayId, bool accepted) {
     }
 }
 
-// 收到中转的 P2P 协议消息：路由到发送器或接收器
 void MainWindow::onTransferRelayMessage(int relayId, const std::string& payload) {
-    // 路由到发送器（P2PTransfer）或接收器（P2PServer）
+    Q_UNUSED(relayId);
     if (_transfer->isBusy()) {
         _transfer->injectRelayMessage(payload);
     } else {
@@ -523,59 +428,105 @@ void MainWindow::onTransferRelayMessage(int relayId, const std::string& payload)
     }
 }
 
+// 收到拉取请求：作为发送端，读取文件并通过中继发送回去
+void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths) {
+    qDebug() << "[MainWindow] onPullForwardReceived: relayId=" << relayId
+             << " files=" << filePaths.size();
+
+    QStringList localFiles;
+    for (const auto& fp : filePaths) {
+        QString qfp = QString::fromStdString(fp);
+        QFileInfo fi(qfp);
+        if (fi.exists() && fi.isFile()) {
+            localFiles.append(qfp);
+        } else {
+            qDebug() << "[MainWindow] pull_fwd: file not found:" << qfp;
+        }
+    }
+
+    if (localFiles.isEmpty()) {
+        qDebug() << "[MainWindow] pull_fwd: no valid files to send";
+        return;
+    }
+
+    // 自动接受并通过中继发送文件
+    _registry->sendTransferAccept(relayId, true);
+    _relayTransferId = relayId;
+    _transfer->startRelayTransfer(_registry, relayId, localFiles);
+}
+
 // ============================================================
-//  远程目录浏览
+//  双栏浏览
 // ============================================================
 
-// 双击对端节点：切换到远程浏览模式，请求主目录列表
-void MainWindow::onPeerDoubleClicked(QListWidgetItem* item) {
-    if (!item || item->data(Qt::UserRole).isNull()) return;
-    if (!_registered) return;
+// 本地双击：进入目录
+void MainWindow::onLocalItemDoubleClicked(const QModelIndex& index) {
+    QFileInfo fi = _localModel->fileInfo(index);
+    if (fi.isDir()) {
+        _localTree->setRootIndex(_localModel->index(fi.absoluteFilePath()));
+        _localPathLabel->setText(QStringLiteral("本机: %1").arg(fi.absoluteFilePath()));
+    }
+}
 
-    QString ip = item->data(Qt::UserRole).toString();
-    quint16 port = static_cast<quint16>(item->data(Qt::UserRole + 1).toInt());
-    QString name = item->data(Qt::UserRole + 2).toString();
+// 远端双击：进入目录
+void MainWindow::onRemoteItemDoubleClicked(const QModelIndex& index) {
+    QModelIndex nameIndex = index.sibling(index.row(), 0);
+    bool isDir = nameIndex.data(Qt::UserRole).toBool();
+    if (!isDir) return;
 
-    qDebug() << "[MainWindow] onPeerDoubleClicked: ip=" << ip << " port=" << port << " name=" << name;
+    QString dirName = nameIndex.data(Qt::DisplayRole).toString();
+    QString newPath = _remotePath + QStringLiteral("/") + dirName;
 
-    // 更新选中的对端节点
+    qDebug() << "[MainWindow] onRemoteItemDoubleClicked:" << dirName << " -> " << newPath;
+
+    _remotePathLabel->setText(QStringLiteral("正在加载..."));
+    _remoteModel->removeRows(0, _remoteModel->rowCount());
+    _registry->sendBrowseRequest(
+        QString::fromStdString(_selectedPeer.ip),
+        static_cast<quint16>(_selectedPeer.port),
+        newPath);
+}
+
+// 切换远端对端
+void MainWindow::onPeerComboChanged(int index) {
+    if (index < 0) return;
+    QVariant data = _peerCombo->itemData(index);
+    if (data.isNull()) return;
+
+    QString ip = _peerCombo->itemData(index, Qt::UserRole).toString();
+    quint16 port = static_cast<quint16>(_peerCombo->itemData(index, Qt::UserRole + 1).toInt());
+    QString name = _peerCombo->itemData(index, Qt::UserRole + 2).toString();
+
     _selectedPeer.ip = ip.toStdString();
     _selectedPeer.port = port;
     _selectedPeer.name = name.toStdString();
 
-    // 切换到远程浏览模式
-    _remoteMode = true;
     _remotePath.clear();
-    _remotePathLabel->setText(QStringLiteral("正在连接 %1 ...").arg(name));
-    _localBtn->setVisible(true);
-    _selectFileBtn->setVisible(false);
-    _selectFolderBtn->setVisible(false);
-
-    // 清空树形视图并切换到远程模型
-    _fileTree->setModel(_remoteModel);
     _remoteModel->removeRows(0, _remoteModel->rowCount());
+    _remotePathLabel->setText(QStringLiteral("正在连接 %1 ...").arg(name));
 
-    // 通过注册服务器中转发送浏览请求
+    _sendRightBtn->setEnabled(_registered);
+    _sendLeftBtn->setEnabled(_registered);
+
     _registry->sendBrowseRequest(ip, port, QString());
 }
 
-// 收到远程目录列表：填充远程模型
+// 收到远端目录列表
 void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<DirEntry>& entries) {
-    qDebug() << "[MainWindow] onRemoteListingReceived: path=" << path << " entries=" << entries.size();
+    qDebug() << "[MainWindow] onRemoteListingReceived:" << path << " entries=" << entries.size();
     _remotePath = path;
+    _remoteEntries = entries;
     _remotePathLabel->setText(QStringLiteral("远端: %1").arg(path));
     _remoteModel->removeRows(0, _remoteModel->rowCount());
 
     for (const auto& e : entries) {
         QList<QStandardItem*> row;
         auto* nameItem = new QStandardItem(QString::fromStdString(e.name));
-        // 设置图标
         if (e.isDir) {
             nameItem->setIcon(QApplication::style()->standardIcon(QStyle::SP_DirIcon));
         } else {
             nameItem->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileIcon));
         }
-        // 将 isDir 标志存储在 UserRole 中，用于双击判断
         nameItem->setData(e.isDir, Qt::UserRole);
         row.append(nameItem);
         auto* sizeItem = new QStandardItem(
@@ -586,55 +537,107 @@ void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<
     }
 }
 
-// 远端浏览错误
 void MainWindow::onRemoteBrowseError(const QString& message) {
-    qDebug() << "[MainWindow] onRemoteBrowseError:" << message;
     _remotePathLabel->setText(QStringLiteral("远端浏览错误: %1").arg(message));
 }
 
-// 双击远程文件列表项：如果是目录则进入该目录
-void MainWindow::onRemoteItemDoubleClicked(const QModelIndex& index) {
-    if (!_remoteMode) return;
+// ============================================================
+//  双向传输
+// ============================================================
 
-    // 获取第一列的名称
-    QModelIndex nameIndex = index.sibling(index.row(), 0);
-    bool isDir = nameIndex.data(Qt::UserRole).toBool();
-    if (!isDir) return;  // 文件不可双击进入
+// → 发送本机选中文件到远端
+void MainWindow::onSendRight() {
+    if (_selectedPeer.ip.empty()) return;
+    if (_transfer->isBusy()) {
+        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("有传输正在进行中"));
+        return;
+    }
 
-    QString dirName = nameIndex.data(Qt::DisplayRole).toString();
-    QString newPath = _remotePath + QStringLiteral("/") + dirName;
+    QStringList localFiles = getSelectedLocalFiles();
+    if (localFiles.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请在左栏选择要发送的文件"));
+        return;
+    }
 
-    qDebug() << "[MainWindow] onRemoteItemDoubleClicked: dirName=" << dirName
-             << " newPath=" << newPath;
+    // 展开目录
+    QStringList allFiles;
+    for (const QString& path : localFiles) {
+        QFileInfo fi(path);
+        if (fi.isDir()) {
+            allFiles.append(expandDirectory(path));
+        } else if (fi.isFile()) {
+            allFiles.append(path);
+        }
+    }
 
-    // 保存对端信息（清空列表前）
-    QString peerIp = QString::fromStdString(_selectedPeer.ip);
-    quint16 peerPort = static_cast<quint16>(_selectedPeer.port);
+    if (allFiles.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("没有可发送的文件"));
+        return;
+    }
 
-    _remotePathLabel->setText(QStringLiteral("正在加载..."));
-    _remoteModel->removeRows(0, _remoteModel->rowCount());
-    _registry->sendBrowseRequest(peerIp, peerPort, newPath);
+    addToTransferQueue(allFiles, QStringLiteral("→ 发送"));
+
+    _pendingRelayFiles = allFiles;
+    _registry->sendTransferRequest(
+        QString::fromStdString(_selectedPeer.ip),
+        static_cast<quint16>(_selectedPeer.port),
+        allFiles.size());
 }
 
-// 返回本地模式：切换回本地文件系统
-void MainWindow::onLocalBtnClicked() {
-    _remoteMode = false;
-    _remotePathLabel->setText(QStringLiteral("本机文件系统"));
-    _localBtn->setVisible(false);
-    _selectFileBtn->setVisible(true);
-    _selectFolderBtn->setVisible(true);
-    _fileTree->setModel(_fileModel);
-    _fileTree->setRootIndex(_fileModel->index(QDir::homePath()));
-    for (int i = 1; i < _fileModel->columnCount(); ++i) {
-        _fileTree->hideColumn(i);
+// ← 从远端拉取选中文件到本机
+void MainWindow::onSendLeft() {
+    if (_selectedPeer.ip.empty()) return;
+    if (_transfer->isBusy()) {
+        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("有传输正在进行中"));
+        return;
     }
+
+    QStringList remoteFileNames = getSelectedRemoteFileNames();
+    if (remoteFileNames.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"), QStringLiteral("请在右栏选择要拉取的文件"));
+        return;
+    }
+
+    // 构造远端完整路径
+    std::vector<std::string> remotePaths;
+    for (const QString& name : remoteFileNames) {
+        remotePaths.push_back((_remotePath + QStringLiteral("/") + name).toStdString());
+    }
+
+    // 添加到传输队列（显示文件名）
+    for (const QString& name : remoteFileNames) {
+        // 查找文件大小
+        uint64_t size = 0;
+        for (const auto& e : _remoteEntries) {
+            if (QString::fromStdString(e.name) == name && !e.isDir) {
+                size = e.size;
+                break;
+            }
+        }
+        int row = _transferQueue->rowCount();
+        _transferQueue->insertRow(row);
+        _transferQueue->setItem(row, 0, new QTableWidgetItem(name));
+        _transferQueue->setItem(row, 1, new QTableWidgetItem(QStringLiteral("← 拉取")));
+        _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(size)));
+        auto* bar = new QProgressBar();
+        bar->setRange(0, 100);
+        bar->setValue(0);
+        bar->setFormat(QStringLiteral("等待中..."));
+        _transferQueue->setCellWidget(row, 3, bar);
+        _transferQueue->setItem(row, 4, new QTableWidgetItem(QStringLiteral("请求中")));
+        _queueEntries[row] = QueueEntry{bar, nullptr};
+    }
+
+    _registry->sendPullRequest(
+        QString::fromStdString(_selectedPeer.ip),
+        static_cast<quint16>(_selectedPeer.port),
+        remotePaths);
 }
 
 // ============================================================
 //  辅助函数
 // ============================================================
 
-// 更新窗口标题：显示注册状态和节点名称
 void MainWindow::updateWindowTitle() {
     if (_registered) {
         setWindowTitle(QStringLiteral("P2P 文件传输 — [%1]")
@@ -644,63 +647,107 @@ void MainWindow::updateWindowTitle() {
     }
 }
 
-// 更新对端节点列表（排除自身）
-void MainWindow::updatePeerList(const std::vector<PeerInfo>& peers) {
-    _peerList->clear();
-    _selectedPeer = PeerInfo{};
+void MainWindow::updatePeerCombo() {
+    _peerCombo->blockSignals(true);
+    _peerCombo->clear();
+    _peerCombo->addItem(QStringLiteral("请选择对端..."), QVariant());
+    _peerCombo->setEnabled(_registered);
 
-    for (const auto& p : peers) {
-        // 通过 IP 和端口匹配排除自身节点
+    for (const auto& p : _allPeers) {
+        // 排除自身
         if (p.ip == _selfInfo.ip && p.port == _selfInfo.port) continue;
 
-        QString label = QStringLiteral("[%1]  %2:%3")
+        QString label = QStringLiteral("[%1] %2:%3")
                         .arg(QString::fromStdString(p.name))
                         .arg(QString::fromStdString(p.ip))
                         .arg(p.port);
-        QListWidgetItem* item = new QListWidgetItem(label);
-        item->setData(Qt::UserRole, QString::fromStdString(p.ip));
-        item->setData(Qt::UserRole + 1, p.port);
-        item->setData(Qt::UserRole + 2, QString::fromStdString(p.name));
-        _peerList->addItem(item);
+        int idx = _peerCombo->count();
+        _peerCombo->addItem(label);
+        _peerCombo->setItemData(idx, QString::fromStdString(p.ip), Qt::UserRole);
+        _peerCombo->setItemData(idx, p.port, Qt::UserRole + 1);
+        _peerCombo->setItemData(idx, QString::fromStdString(p.name), Qt::UserRole + 2);
     }
 
-    if (_peerList->count() == 0) {
-        _peerList->addItem(QStringLiteral("暂无其他节点"));
-    }
+    _peerCombo->blockSignals(false);
 
-    updateButtonStates();
-}
-
-// 更新按钮的启用/禁用状态
-void MainWindow::updateButtonStates() {
-    _registerBtn->setEnabled(!_registered && _registry->state() != RegistryClient::State::Connecting);
-    _unregisterBtn->setEnabled(_registered);
-    _refreshBtn->setEnabled(_registered);
-
-    // 发送按钮：仅在选中对端且已注册时启用
-    QListWidgetItem* sel = _peerList->currentItem();
-    bool peerSelected = sel && !sel->data(Qt::UserRole).isNull();
-    _sendBtn->setEnabled(peerSelected && _registered);
-
-    if (peerSelected && _registered) {
-        _selectedPeer.ip = sel->data(Qt::UserRole).toString().toStdString();
-        _selectedPeer.port = sel->data(Qt::UserRole + 1).toInt();
-        _selectedPeer.name = sel->data(Qt::UserRole + 2).toString().toStdString();
+    // 如果只有一个对端，自动选中
+    if (_peerCombo->count() == 2) {
+        _peerCombo->setCurrentIndex(1);
+        onPeerComboChanged(1);
     }
 }
 
-// 将文件路径添加到已选列表（去重）
-void MainWindow::addFileToSelected(const QString& path) {
-    if (!_selectedFiles.contains(path)) {
-        _selectedFiles.append(path);
+// 获取左栏（本地）选中的文件/目录路径
+QStringList MainWindow::getSelectedLocalFiles() {
+    QModelIndexList selected = _localTree->selectionModel()->selectedIndexes();
+    QStringList files;
+    QSet<QString> seen;
+    for (const QModelIndex& idx : selected) {
+        if (idx.column() != 0) continue;  // 只取第一列
+        QString path = _localModel->filePath(idx);
+        if (!seen.contains(path)) {
+            seen.insert(path);
+            files.append(path);
+        }
+    }
+    return files;
+}
+
+// 获取右栏（远端）选中的文件名（不含目录）
+QStringList MainWindow::getSelectedRemoteFileNames() {
+    QModelIndexList selected = _remoteTree->selectionModel()->selectedIndexes();
+    QStringList names;
+    QSet<QString> seen;
+    for (const QModelIndex& idx : selected) {
+        if (idx.column() != 0) continue;
+        QModelIndex nameIdx = idx.sibling(idx.row(), 0);
+        bool isDir = nameIdx.data(Qt::UserRole).toBool();
+        if (isDir) continue;  // 只选文件
+        QString name = nameIdx.data(Qt::DisplayRole).toString();
+        if (!seen.contains(name)) {
+            seen.insert(name);
+            names.append(name);
+        }
+    }
+    return names;
+}
+
+void MainWindow::addToTransferQueue(const QStringList& files, const QString& direction) {
+    for (const QString& path : files) {
+        QFileInfo fi(path);
+        if (!fi.exists() || !fi.isFile()) continue;
+
+        int row = _transferQueue->rowCount();
+        _transferQueue->insertRow(row);
+        _transferQueue->setItem(row, 0, new QTableWidgetItem(fi.fileName()));
+        _transferQueue->setItem(row, 1, new QTableWidgetItem(direction));
+        _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(
+                                  static_cast<uint64_t>(fi.size()))));
+
+        QProgressBar* bar = new QProgressBar();
+        bar->setRange(0, 100);
+        bar->setValue(0);
+        bar->setFormat(QStringLiteral("0%"));
+        _transferQueue->setCellWidget(row, 3, bar);
+        _transferQueue->setItem(row, 4, new QTableWidgetItem(QStringLiteral("排队中")));
+
+        QueueEntry entry;
+        entry.bar = bar;
+        _queueEntries.insert(row, entry);
     }
 }
 
-// 递归展开目录，返回所有文件的绝对路径列表
+int MainWindow::findQueueRow(const QString& fileName) {
+    for (int r = 0; r < _transferQueue->rowCount(); ++r) {
+        QTableWidgetItem* item = _transferQueue->item(r, 0);
+        if (item && item->text() == fileName) return r;
+    }
+    return -1;
+}
+
 QStringList MainWindow::expandDirectory(const QString& dirPath) {
     QStringList result;
     QDir dir(dirPath);
-
     QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot,
                                               QDir::DirsFirst);
     for (const QFileInfo& fi : entries) {
@@ -713,50 +760,6 @@ QStringList MainWindow::expandDirectory(const QString& dirPath) {
     return result;
 }
 
-// 将文件列表添加到传输队列表格
-void MainWindow::addToTransferQueue(const QStringList& files) {
-    for (const QString& path : files) {
-        QFileInfo fi(path);
-        if (!fi.exists() || !fi.isFile()) continue;
-
-        int row = _transferQueue->rowCount();
-        _transferQueue->insertRow(row);
-
-        // 文件名
-        QString targetLabel = _selectedPeer.name.empty()
-                              ? QStringLiteral("?")
-                              : QString::fromStdString(_selectedPeer.name);
-        _transferQueue->setItem(row, 0, new QTableWidgetItem(fi.fileName()));
-        _transferQueue->setItem(row, 1, new QTableWidgetItem(targetLabel));
-        _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(
-                                  static_cast<uint64_t>(fi.size()))));
-
-        // 进度条
-        QProgressBar* bar = new QProgressBar();
-        bar->setRange(0, 100);
-        bar->setValue(0);
-        bar->setFormat(QStringLiteral("0%"));
-        _transferQueue->setCellWidget(row, 3, bar);
-
-        // 状态
-        _transferQueue->setItem(row, 4, new QTableWidgetItem(QStringLiteral("排队中")));
-
-        QueueEntry entry;
-        entry.bar = bar;
-        _queueEntries.insert(row, entry);
-    }
-}
-
-// 在传输队列中查找指定文件名的行号
-int MainWindow::findQueueRow(const QString& fileName) {
-    for (int r = 0; r < _transferQueue->rowCount(); ++r) {
-        QTableWidgetItem* item = _transferQueue->item(r, 0);
-        if (item && item->text() == fileName) return r;
-    }
-    return -1;
-}
-
-// 格式化文件大小为人类可读字符串（B/KB/MB/GB）
 QString MainWindow::formatFileSize(uint64_t bytes) {
     if (bytes < 1024) return QString::number(bytes) + QStringLiteral(" B");
     if (bytes < 1024 * 1024) return QString::number(bytes / 1024.0, 'f', 1) + QStringLiteral(" KB");
@@ -764,7 +767,6 @@ QString MainWindow::formatFileSize(uint64_t bytes) {
     return QString::number(bytes / (1024.0 * 1024.0 * 1024.0), 'f', 1) + QStringLiteral(" GB");
 }
 
-// 获取简短主机名（去掉域名后缀）
 QString MainWindow::hostnameShort() {
     QString host = QHostInfo::localHostName();
     int dotIdx = host.indexOf('.');
@@ -778,7 +780,6 @@ QString MainWindow::hostnameShort() {
 //  窗口关闭事件
 // ============================================================
 
-// 关闭窗口前先注销，通知服务器本节点下线
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (_registered) {
         _registry->unregisterPeer();

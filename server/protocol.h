@@ -80,3 +80,20 @@ struct TransferRelay {
     std::string payload;
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TransferRelay, type, relay_id, payload)
+
+// 拉取请求：请求对端发送指定文件
+struct PullRequest {
+    std::string type = "pull_request";
+    std::string target_ip;
+    int target_port = 0;
+    std::vector<std::string> file_paths;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PullRequest, type, target_ip, target_port, file_paths)
+
+// 拉取转发：服务器 → 目标节点
+struct PullForward {
+    std::string type = "pull_fwd";
+    int relay_id = 0;
+    std::vector<std::string> file_paths;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PullForward, type, relay_id, file_paths)

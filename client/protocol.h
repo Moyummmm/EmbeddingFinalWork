@@ -184,6 +184,23 @@ struct TransferRelay {
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TransferRelay, type, relay_id, payload)
 
+// 拉取请求：请求对端发送指定文件到本机
+struct PullRequest {
+    std::string type = "pull_request";
+    std::string target_ip;          // 目标节点 IP
+    int target_port = 0;            // 目标节点端口
+    std::vector<std::string> file_paths; // 要拉取的远程文件路径列表
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PullRequest, type, target_ip, target_port, file_paths)
+
+// 拉取转发：服务器 → 目标节点（通知有拉取请求）
+struct PullForward {
+    std::string type = "pull_fwd";
+    int relay_id = 0;               // 中转会话 ID
+    std::vector<std::string> file_paths; // 要发送的文件路径列表
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PullForward, type, relay_id, file_paths)
+
 // ============================================================
 //  帧编码/解码（跨平台实现，不依赖 arpa/inet.h）
 //  帧格式：[4 字节大端长度][JSON 负载]

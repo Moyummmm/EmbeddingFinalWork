@@ -4,7 +4,7 @@
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QPushButton>
-#include <QListWidget>
+#include <QComboBox>
 #include <QTreeView>
 #include <QFileSystemModel>
 #include <QStandardItemModel>
@@ -18,7 +18,7 @@
 #include "p2p_transfer.h"
 #include "p2p_browse_client.h"
 
-// 主窗口：P2P 文件传输客户端的图形界面
+// 主窗口：双栏文件浏览器 + 双向传输
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -26,20 +26,15 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
 
-    // 设置 P2P 接收服务器的引用（由 main.cpp 创建并传入）
     void setP2PServer(P2PServer* server) { _p2pServer = server; }
 
 protected:
     void closeEvent(QCloseEvent* event) override;
 
 private slots:
-    // 按钮点击槽函数
-    void onRegisterClicked();       // 注册按钮
-    void onUnregisterClicked();     // 注销按钮
-    void onRefreshClicked();        // 刷新对端列表按钮
-    void onSelectFilesClicked();    // 选择文件按钮
-    void onSelectFolderClicked();   // 选择文件夹按钮
-    void onSendClicked();           // 发送按钮
+    void onRegisterClicked();
+    void onUnregisterClicked();
+    void onRefreshClicked();
 
     // 注册客户端信号处理
     void onRegConnected();
@@ -63,88 +58,88 @@ private:
     void onTransferFinished(int success, int failed);
     void onTransferError(const QString& message);
 
-    // 远程目录浏览相关槽函数
-    void onPeerDoubleClicked(QListWidgetItem* item);              // 双击对端节点
+    // 远程目录浏览
     void onRemoteListingReceived(const QString& path, const std::vector<DirEntry>& entries);
     void onRemoteBrowseError(const QString& message);
-    void onRemoteItemDoubleClicked(const QModelIndex& index);     // 双击远程文件列表项
-    void onLocalBtnClicked();                                      // 返回本地模式
 
-    // 文件传输中继相关槽函数
-    void onTransferForwardReceived(int relayId, int fileCount);   // 收到传入传输通知
-    void onTransferAccepted(int relayId, bool accepted);          // 传输请求被接受/拒绝
-    void onTransferRelayMessage(int relayId, const std::string& payload); // 收到中转消息
+    // 文件传输中继
+    void onTransferForwardReceived(int relayId, int fileCount);
+    void onTransferAccepted(int relayId, bool accepted);
+    void onTransferRelayMessage(int relayId, const std::string& payload);
+    void onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths);
+
+    // 双栏浏览
+    void onLocalItemDoubleClicked(const QModelIndex& index);
+    void onRemoteItemDoubleClicked(const QModelIndex& index);
+    void onPeerComboChanged(int index);
+
+    // 双向传输
+    void onSendRight();     // → 本机选中文件发送到远端
+    void onSendLeft();      // ← 远端选中文件拉取到本机
 
 private:
-    // 更新窗口标题（显示注册状态和节点名称）
     void updateWindowTitle();
-    // 更新对端节点列表
-    void updatePeerList(const std::vector<PeerInfo>& peers);
-    // 更新各按钮的启用/禁用状态
-    void updateButtonStates();
-    // 将文件添加到已选列表（去重）
-    void addFileToSelected(const QString& path);
-    // 递归展开目录，返回所有文件的绝对路径
-    QStringList expandDirectory(const QString& dirPath);
-    // 将文件列表添加到传输队列表格
-    void addToTransferQueue(const QStringList& files);
-    // 在传输队列中查找指定文件的行号
+    void updatePeerCombo();
+    QStringList getSelectedLocalFiles();
+    QStringList getSelectedRemoteFileNames();
+    void addToTransferQueue(const QStringList& files, const QString& direction);
     int findQueueRow(const QString& fileName);
-    // 格式化文件大小为人类可读字符串
+    QStringList expandDirectory(const QString& dirPath);
     static QString formatFileSize(uint64_t bytes);
-    // 获取简短的主机名
     static QString hostnameShort();
 
-    // === 顶部配置栏控件 ===
-    QLineEdit* _serverIpEdit = nullptr;     // 注册服务器 IP
-    QSpinBox* _serverPortSpin = nullptr;    // 注册服务器端口
-    QLineEdit* _nameEdit = nullptr;         // 本节点名称
-    QSpinBox* _p2pPortSpin = nullptr;       // 本机 P2P 监听端口
-    QPushButton* _registerBtn = nullptr;    // 注册按钮
-    QPushButton* _unregisterBtn = nullptr;  // 注销按钮
-    QPushButton* _refreshBtn = nullptr;     // 刷新按钮
+    // === 顶部配置栏 ===
+    QLineEdit* _serverIpEdit = nullptr;
+    QSpinBox* _serverPortSpin = nullptr;
+    QLineEdit* _nameEdit = nullptr;
+    QSpinBox* _p2pPortSpin = nullptr;
+    QPushButton* _registerBtn = nullptr;
+    QPushButton* _unregisterBtn = nullptr;
+    QPushButton* _refreshBtn = nullptr;
 
-    // === 左侧对端列表 ===
-    QListWidget* _peerList = nullptr;       // 对端节点列表
-    QPushButton* _sendBtn = nullptr;        // 发送按钮
+    // === 左栏：本机文件 ===
+    QTreeView* _localTree = nullptr;
+    QFileSystemModel* _localModel = nullptr;
+    QLabel* _localPathLabel = nullptr;
 
-    // === 右侧文件系统树 ===
-    QTreeView* _fileTree = nullptr;         // 文件/目录树形视图
-    QFileSystemModel* _fileModel = nullptr; // 本地文件系统模型
-    QPushButton* _selectFileBtn = nullptr;  // 选择文件按钮
-    QPushButton* _selectFolderBtn = nullptr; // 选择文件夹按钮
+    // === 右栏：远端文件 ===
+    QTreeView* _remoteTree = nullptr;
+    QStandardItemModel* _remoteModel = nullptr;
+    QLabel* _remotePathLabel = nullptr;
+    QComboBox* _peerCombo = nullptr;
+
+    // === 中间箭头 ===
+    QPushButton* _sendRightBtn = nullptr;   // →
+    QPushButton* _sendLeftBtn = nullptr;    // ←
 
     // === 底部传输队列 ===
-    QTableWidget* _transferQueue = nullptr; // 传输任务表格
-    QLabel* _receivePathLabel = nullptr;    // 接收文件保存路径提示
+    QTableWidget* _transferQueue = nullptr;
+    QLabel* _receivePathLabel = nullptr;
 
     // === 核心模块 ===
-    RegistryClient* _registry = nullptr;    // 注册客户端
-    P2PServer* _p2pServer = nullptr;        // P2P 接收服务器
-    P2PTransfer* _transfer = nullptr;       // P2P 文件发送器
-    P2PBrowseClient* _browseClient = nullptr; // P2P 浏览客户端
+    RegistryClient* _registry = nullptr;
+    P2PServer* _p2pServer = nullptr;
+    P2PTransfer* _transfer = nullptr;
+    P2PBrowseClient* _browseClient = nullptr;
 
     // === 运行状态 ===
-    bool _registered = false;               // 是否已注册到服务器
-    PeerInfo _selfInfo;                     // 本节点信息
-    PeerInfo _selectedPeer;                 // 当前选中的对端节点
-    QStringList _selectedFiles;             // 已选择的文件路径列表
+    bool _registered = false;
+    PeerInfo _selfInfo;
+    PeerInfo _selectedPeer;
+    std::vector<PeerInfo> _allPeers;    // 当前在线的所有节点（含自身）
 
     // === 远程浏览状态 ===
-    bool _remoteMode = false;               // 是否处于远程浏览模式
-    QString _remotePath;                    // 当前远程目录路径
-    QStandardItemModel* _remoteModel = nullptr; // 远程目录列表模型
-    QLabel* _remotePathLabel = nullptr;     // 远程路径标签
-    QPushButton* _localBtn = nullptr;       // 返回本地按钮
+    QString _remotePath;
+    std::vector<DirEntry> _remoteEntries;
 
     // === 传输队列条目跟踪 ===
     struct QueueEntry {
-        QProgressBar* bar = nullptr;        // 进度条控件
-        QTimer* removeTimer = nullptr;      // 完成后自动移除的定时器
+        QProgressBar* bar = nullptr;
+        QTimer* removeTimer = nullptr;
     };
-    QHash<int, QueueEntry> _queueEntries;   // 行号 → 条目映射
+    QHash<int, QueueEntry> _queueEntries;
 
     // === 文件传输中继状态 ===
-    int _relayTransferId = 0;               // 当前中转会话 ID（0 表示无）
-    QStringList _pendingRelayFiles;         // 等待中转确认的文件列表
+    int _relayTransferId = 0;
+    QStringList _pendingRelayFiles;
 };

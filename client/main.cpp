@@ -56,21 +56,13 @@ int main(int argc, char* argv[]) {
     P2PServer p2pServer;
     logStartup(QStringLiteral("Creating P2PServer, port=%1").arg(p2pPort));
 
-    if (!p2pServer.startListening(p2pPort)) {
-        QString err = QStringLiteral("P2P listen failed on port %1")
-                      .arg(p2pPort == 0 ? QStringLiteral("(random)") : QString::number(p2pPort));
-        logStartup(QStringLiteral("FATAL: ") + err);
-        QMessageBox::critical(nullptr, QStringLiteral("启动失败"), err);
-        return 1;
-    }
-    logStartup(QStringLiteral("P2PServer listening on port %1").arg(p2pServer.serverPort()));
-
     // --- Main Window ---
     logStartup(QStringLiteral("Creating MainWindow"));
     MainWindow window;
     window.setP2PServer(&p2pServer);
 
-    // Connect P2PServer signals to MainWindow slots
+    // Connect P2PServer signals to MainWindow slots BEFORE starting listening,
+    // so that onP2PListeningStarted can update the spin box with the actual port.
     QObject::connect(&p2pServer, &P2PServer::listeningStarted,
                      &window, &MainWindow::onP2PListeningStarted);
     QObject::connect(&p2pServer, &P2PServer::fileReceived,
@@ -79,6 +71,15 @@ int main(int argc, char* argv[]) {
                      &window, &MainWindow::onP2PTransferCompleted);
     QObject::connect(&p2pServer, &P2PServer::errorOccurred,
                      &window, &MainWindow::onP2PError);
+
+    if (!p2pServer.startListening(p2pPort)) {
+        QString err = QStringLiteral("P2P listen failed on port %1")
+                      .arg(p2pPort == 0 ? QStringLiteral("(random)") : QString::number(p2pPort));
+        logStartup(QStringLiteral("FATAL: ") + err);
+        QMessageBox::critical(nullptr, QStringLiteral("启动失败"), err);
+        return 1;
+    }
+    logStartup(QStringLiteral("P2PServer listening on port %1").arg(p2pServer.serverPort()));
 
     logStartup(QStringLiteral("Showing MainWindow"));
     window.show();

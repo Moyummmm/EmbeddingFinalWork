@@ -1,0 +1,7 @@
+/home/zhumayuan/codes/embedding/client/build/CMakeFiles/client.dir
+/home/zhumayuan/codes/embedding/client/build/CMakeFiles/edit_cache.dir
+/home/zhumayuan/codes/embedding/client/build/CMakeFiles/rebuild_cache.dir
+/home/zhumayuan/codes/embedding/client/build/CMakeFiles/client_autogen_timestamp_deps.dir
+/home/zhumayuan/codes/embedding/client/build/CMakeFiles/client_autogen.dir
+/home/zhumayuan/codes/embedding/client/build/_deps/json-build/CMakeFiles/edit_cache.dir
+/home/zhumayuan/codes/embedding/client/build/_deps/json-build/CMakeFiles/rebuild_cache.dir

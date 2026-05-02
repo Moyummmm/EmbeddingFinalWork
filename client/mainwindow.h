@@ -70,6 +70,11 @@ private:
     void onRemoteItemDoubleClicked(const QModelIndex& index);     // 双击远程文件列表项
     void onLocalBtnClicked();                                      // 返回本地模式
 
+    // 文件传输中继相关槽函数
+    void onTransferForwardReceived(int relayId, int fileCount);   // 收到传入传输通知
+    void onTransferAccepted(int relayId, bool accepted);          // 传输请求被接受/拒绝
+    void onTransferRelayMessage(int relayId, const std::string& payload); // 收到中转消息
+
 private:
     // 更新窗口标题（显示注册状态和节点名称）
     void updateWindowTitle();
@@ -137,4 +142,8 @@ private:
         QTimer* removeTimer = nullptr;      // 完成后自动移除的定时器
     };
     QHash<int, QueueEntry> _queueEntries;   // 行号 → 条目映射
+
+    // === 文件传输中继状态 ===
+    int _relayTransferId = 0;               // 当前中转会话 ID（0 表示无）
+    QStringList _pendingRelayFiles;         // 等待中转确认的文件列表
 };

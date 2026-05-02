@@ -349,6 +349,89 @@ void Server::process_message(int fd, const std::string& json_str) {
 
                 send_response(requester_fd, result.dump());
             }
+
+        } else if (type == "transfer_request") {
+            // Sender wants to transfer files to a target peer via server relay
+            std::string target_ip = j.value("target_ip", std::string(""));
+            int target_port = j.value("target_port", 0);
+            int file_count = j.value("file_count", 0);
+
+            std::string tk = peer_key(target_ip, target_port);
+            auto fd_it = _peer_fds.find(tk);
+
+            std::cout << "[transfer_request] from fd=" << fd << " (" << conn.peer_ip << ")"
+                      << " -> target=" << tk
+                      << " files=" << file_count
+                      << " target_fd_found=" << (fd_it != _peer_fds.end())
+                      << std::endl;
+
+            if (fd_it == _peer_fds.end()) {
+                nlohmann::json resp;
+                resp["type"] = "transfer_accept";
+                resp["relay_id"] = 0;
+                resp["accepted"] = false;
+                send_response(fd, resp.dump());
+            } else {
+                int relay_id = _next_relay_id++;
+                _transfer_relays[relay_id] = {fd, fd_it->second};
+
+                // Notify target with transfer_fwd
+                nlohmann::json fwd;
+                fwd["type"] = "transfer_fwd";
+                fwd["relay_id"] = relay_id;
+                fwd["file_count"] = file_count;
+
+                std::cout << "[transfer_request] relay_id=" << relay_id
+                          << " sender_fd=" << fd << " target_fd=" << fd_it->second
+                          << " forwarding transfer_fwd" << std::endl;
+
+                send_response(fd_it->second, fwd.dump());
+            }
+
+        } else if (type == "transfer_accept") {
+            // Target accepts or rejects the transfer
+            auto ta = j.get<TransferAccept>();
+            auto rit = _transfer_relays.find(ta.relay_id);
+
+            std::cout << "[transfer_accept] relay_id=" << ta.relay_id
+                      << " accepted=" << ta.accepted
+                      << " relay_found=" << (rit != _transfer_relays.end())
+                      << std::endl;
+
+            if (rit != _transfer_relays.end()) {
+                // Forward acceptance to sender
+                nlohmann::json resp;
+                resp["type"] = "transfer_accept";
+                resp["relay_id"] = ta.relay_id;
+                resp["accepted"] = ta.accepted;
+                send_response(rit->second.sender_fd, resp.dump());
+
+                if (!ta.accepted) {
+                    _transfer_relays.erase(rit);
+                }
+            }
+
+        } else if (type == "transfer_relay") {
+            // Relay a P2P protocol message between sender and target
+            auto tr = j.get<TransferRelay>();
+            auto rit = _transfer_relays.find(tr.relay_id);
+
+            if (rit != _transfer_relays.end()) {
+                // Determine the other side
+                int other_fd = (fd == rit->second.sender_fd) ? rit->second.target_fd : rit->second.sender_fd;
+
+                std::cout << "[transfer_relay] relay_id=" << tr.relay_id
+                          << " from fd=" << fd << " -> to fd=" << other_fd
+                          << " payload_size=" << tr.payload.size()
+                          << std::endl;
+
+                // Forward the relay message as-is to the other side
+                send_response(other_fd, json_str);
+            } else {
+                std::cout << "[transfer_relay] relay_id=" << tr.relay_id
+                          << " NOT FOUND, dropping" << std::endl;
+            }
+
         } else {
             // 未知消息类型：输出日志以便调试
             std::cout << "[WARN] unknown message type: \"" << type
@@ -403,6 +486,17 @@ void Server::close_connection(int fd) {
             bit = _browse_map.erase(bit);
         } else {
             ++bit;
+        }
+    }
+
+    // Clean up transfer relay sessions involving this fd
+    for (auto rit = _transfer_relays.begin(); rit != _transfer_relays.end(); ) {
+        if (rit->second.sender_fd == fd || rit->second.target_fd == fd) {
+            std::cout << "[transfer_relay] cleanup relay_id=" << rit->first
+                      << " (fd=" << fd << " disconnected)" << std::endl;
+            rit = _transfer_relays.erase(rit);
+        } else {
+            ++rit;
         }
     }
 

@@ -251,6 +251,28 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
 
             // 通过服务器中转回送浏览结果
             sendBrowseResponse(reqId, actualPath, entries, error);
+        } else if (type == "transfer_fwd") {
+            // 收到服务器转发的传输请求（作为接收端）
+            int relayId = j.value("relay_id", 0);
+            int fileCount = j.value("file_count", 0);
+            qDebug() << "[RegistryClient] transfer_fwd: relayId=" << relayId
+                     << " fileCount=" << fileCount;
+            emit transferForwardReceived(relayId, fileCount);
+
+        } else if (type == "transfer_accept") {
+            // 收到传输接受/拒绝响应（作为发送端）
+            int relayId = j.value("relay_id", 0);
+            bool accepted = j.value("accepted", false);
+            qDebug() << "[RegistryClient] transfer_accept: relayId=" << relayId
+                     << " accepted=" << accepted;
+            emit transferAccepted(relayId, accepted);
+
+        } else if (type == "transfer_relay") {
+            // 收到中转的 P2P 协议消息
+            int relayId = j.value("relay_id", 0);
+            std::string payload = j.value("payload", std::string(""));
+            emit transferRelayMessage(relayId, payload);
+
         } else {
             qDebug() << "[RegistryClient] WARNING: unknown message type:" << QString::fromStdString(type);
         }
@@ -298,6 +320,49 @@ void RegistryClient::sendBrowseResponse(int reqId, const std::string& path,
     for (const auto& e : entries) {
         j["entries"].push_back({{"name", e.name}, {"isDir", e.isDir}, {"size", e.size}});
     }
+
+    sendMessage(j.dump());
+}
+
+// 通过注册服务器中转，向目标节点发送文件传输请求
+void RegistryClient::sendTransferRequest(const QString& targetIp, quint16 targetPort, int fileCount) {
+    if (_state != State::Connected) {
+        emit errorOccurred(QStringLiteral("未连接到注册服务器"));
+        return;
+    }
+
+    nlohmann::json j;
+    j["type"] = "transfer_request";
+    j["target_ip"] = targetIp.toStdString();
+    j["target_port"] = targetPort;
+    j["file_count"] = fileCount;
+
+    qDebug() << "[RegistryClient] sendTransferRequest: target=" << targetIp << ":" << targetPort
+             << " files=" << fileCount;
+    sendMessage(j.dump());
+}
+
+// 发送传输接受/拒绝响应
+void RegistryClient::sendTransferAccept(int relayId, bool accepted) {
+    if (_state != State::Connected) return;
+
+    nlohmann::json j;
+    j["type"] = "transfer_accept";
+    j["relay_id"] = relayId;
+    j["accepted"] = accepted;
+
+    qDebug() << "[RegistryClient] sendTransferAccept: relayId=" << relayId << " accepted=" << accepted;
+    sendMessage(j.dump());
+}
+
+// 发送中转的 P2P 协议消息
+void RegistryClient::sendTransferRelay(int relayId, const std::string& payload) {
+    if (_state != State::Connected) return;
+
+    nlohmann::json j;
+    j["type"] = "transfer_relay";
+    j["relay_id"] = relayId;
+    j["payload"] = payload;
 
     sendMessage(j.dump());
 }

@@ -147,6 +147,44 @@ struct Bye {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Bye, type)
 
 // ============================================================
+//  服务器中转文件传输相关消息类型
+// ============================================================
+
+// 传输请求：发送端 → 服务器（请求向目标节点发送文件）
+struct TransferRequest {
+    std::string type = "transfer_request";
+    std::string target_ip;      // 目标节点 IP
+    int target_port = 0;        // 目标节点 P2P 端口
+    int file_count = 0;         // 即将发送的文件数量
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TransferRequest, type, target_ip, target_port, file_count)
+
+// 传输转发：服务器 → 目标节点（通知有文件传入）
+struct TransferForward {
+    std::string type = "transfer_fwd";
+    int relay_id = 0;           // 中转会话 ID
+    int file_count = 0;         // 即将接收的文件数量
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TransferForward, type, relay_id, file_count)
+
+// 传输接受/拒绝：目标 → 服务器 → 发送端
+struct TransferAccept {
+    std::string type = "transfer_accept";
+    int relay_id = 0;           // 中转会话 ID
+    bool accepted = true;       // 是否接受
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TransferAccept, type, relay_id, accepted)
+
+// 传输中继：双向中转 P2P 传输协议消息
+// 服务器收到后根据 relay_id 转发给对端
+struct TransferRelay {
+    std::string type = "transfer_relay";
+    int relay_id = 0;           // 中转会话 ID
+    std::string payload;        // 被中转的 P2P 协议消息 JSON 字符串
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TransferRelay, type, relay_id, payload)
+
+// ============================================================
 //  帧编码/解码（跨平台实现，不依赖 arpa/inet.h）
 //  帧格式：[4 字节大端长度][JSON 负载]
 // ============================================================

@@ -37,6 +37,11 @@ public:
     void sendBrowseResponse(int reqId, const std::string& path,
                             const std::vector<DirEntry>& entries, const std::string& error);
 
+    // 通过注册服务器中转文件传输
+    void sendTransferRequest(const QString& targetIp, quint16 targetPort, int fileCount);
+    void sendTransferAccept(int relayId, bool accepted);
+    void sendTransferRelay(int relayId, const std::string& payload);
+
     // 获取当前状态
     State state() const { return _state; }
     QString localIp() const { return _localIp; }
@@ -54,6 +59,11 @@ signals:
     // 浏览中继信号
     void browseResult(const QString& path, const std::vector<DirEntry>& entries);  // 浏览结果
     void browseError(const QString& message);       // 浏览错误
+
+    // 文件传输中继信号
+    void transferForwardReceived(int relayId, int fileCount);    // 收到传输转发通知（作为接收端）
+    void transferAccepted(int relayId, bool accepted);           // 传输请求被接受/拒绝（作为发送端）
+    void transferRelayMessage(int relayId, const std::string& payload); // 收到中转的P2P协议消息
 
 private slots:
     void onConnected();                             // TCP 连接建立

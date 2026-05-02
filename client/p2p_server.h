@@ -8,8 +8,12 @@
 #include <QHash>
 #include <QFile>
 
+// 前向声明
+class RegistryClient;
+
 // P2P 接收服务器：运行在主线程上，接受对端的 P2P 连接
 // 每个连接处理一个传输会话（push_hello → 文件数据 → transfer_done → bye）
+// 支持两种模式：直连模式（TCP 监听）和服务器中转模式（Relay）
 class P2PServer : public QObject {
     Q_OBJECT
 
@@ -24,6 +28,11 @@ public:
 
     // 获取实际监听的端口号
     quint16 serverPort() const { return _server ? _server->serverPort() : 0; }
+
+    // 中转模式：开始接收通过服务器中转的文件
+    void startRelayReceive(RegistryClient* registry, int relayId, int fileCount);
+    // 中转模式：注入收到的中转消息
+    void injectRelayMessage(const std::string& jsonStr);
 
 signals:
     void listeningStarted(quint16 port);                     // 开始监听
@@ -57,4 +66,15 @@ private:
     QTcpServer* _server = nullptr;              // TCP 服务器
     QHash<QTcpSocket*, RecvSession> _sessions;  // 所有活跃的接收会话
     QString _basePath;                          // 文件保存的基础目录
+
+    // 中转模式相关
+    bool _relayMode = false;                    // 是否处于服务器中转模式
+    int _relayId = 0;                           // 中转会话 ID
+    RegistryClient* _relayRegistry = nullptr;   // 注册客户端（用于发送中转消息）
+    RecvSession _relaySession;                  // 中转模式的接收会话
+
+    // 统一响应发送接口
+    void sendResponseMessage(QTcpSocket* socket, const std::string& jsonStr);
+    // 通用消息处理（直连和中转共用）
+    void processSessionMessage(RecvSession& sess, const std::string& jsonStr);
 };

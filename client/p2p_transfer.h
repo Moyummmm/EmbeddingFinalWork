@@ -6,8 +6,12 @@
 #include <QQueue>
 #include <QFile>
 
+// 前向声明
+class RegistryClient;
+
 // P2P 文件发送器：管理一次文件传输会话（向对端推送一批文件）
 // 串行队列模式：所有文件通过同一个 TCP 连接逐个发送
+// 支持两种模式：直连模式（P2P）和服务器中转模式（Relay）
 class P2PTransfer : public QObject {
     Q_OBJECT
 
@@ -15,10 +19,16 @@ public:
     explicit P2PTransfer(QObject* parent = nullptr);
     ~P2PTransfer() override;
 
-    // 开始向对端传输文件
-    // fileList：文件绝对路径列表（目录应在调用前展开）
+    // 直连模式：向对端传输文件
     void startTransfer(const QString& peerIp, quint16 peerPort,
                        const QStringList& fileList);
+
+    // 中转模式：通过服务器中转传输文件
+    void startRelayTransfer(RegistryClient* registry, int relayId,
+                            const QStringList& fileList);
+
+    // 注入中转模式下收到的对端消息
+    void injectRelayMessage(const std::string& jsonStr);
 
     // 是否正在传输中
     bool isBusy() const { return _state != State::Idle; }
@@ -70,4 +80,12 @@ private:
 
     // 每个数据块大小：64KB
     static constexpr int CHUNK_SIZE = 64 * 1024;
+
+    // 中转模式相关
+    bool _relayMode = false;                // 是否处于服务器中转模式
+    int _relayId = 0;                       // 中转会话 ID
+    RegistryClient* _relayRegistry = nullptr; // 注册客户端（用于发送中转消息）
+
+    // 统一发送接口：根据模式选择直连或中转
+    void sendJsonMessage(const std::string& jsonStr);
 };

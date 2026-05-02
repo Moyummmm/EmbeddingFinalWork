@@ -1,4 +1,5 @@
 #include "p2p_server.h"
+#include "registry_client.h"
 #include "protocol.h"
 
 #include <QDir>
@@ -17,6 +18,41 @@ P2PServer::P2PServer(QObject* parent)
 
 P2PServer::~P2PServer() {
     stopListening();
+}
+
+// 统一响应发送接口：根据模式选择直连或中转
+void P2PServer::sendResponseMessage(QTcpSocket* socket, const std::string& jsonStr) {
+    if (_relayMode) {
+        if (_relayRegistry) {
+            _relayRegistry->sendTransferRelay(_relayId, jsonStr);
+        }
+    } else if (socket) {
+        std::string frame = encode_frame(jsonStr);
+        socket->write(frame.data(), static_cast<qint64>(frame.size()));
+    }
+}
+
+// 中转模式：开始接收通过服务器中转的文件
+void P2PServer::startRelayReceive(RegistryClient* registry, int relayId, int fileCount) {
+    _relayMode = true;
+    _relayId = relayId;
+    _relayRegistry = registry;
+    _relaySession = RecvSession();
+    _relaySession.expectedFileCount = fileCount;
+
+    QDir().mkpath(_basePath);
+
+    qDebug() << "[P2PServer] startRelayReceive: relayId=" << relayId
+             << " fileCount=" << fileCount;
+    // 等待发送端的 push_hello 到达后再回复 push_ready
+}
+
+// 中转模式：注入收到的中转消息
+void P2PServer::injectRelayMessage(const std::string& jsonStr) {
+    qDebug() << "[P2PServer] injectRelayMessage, relayMode=" << _relayMode;
+    if (_relayMode) {
+        processSessionMessage(_relaySession, jsonStr);
+    }
 }
 
 // 开始监听指定端口，port 为 0 时由系统分配随机端口
@@ -44,6 +80,18 @@ bool P2PServer::startListening(quint16 port) {
 
 // 停止监听，清理所有会话和未完成的文件
 void P2PServer::stopListening() {
+    // 清理中转模式
+    if (_relayMode) {
+        if (_relaySession.currentFile) {
+            _relaySession.currentFile->close();
+            _relaySession.currentFile->remove();
+            delete _relaySession.currentFile;
+            _relaySession.currentFile = nullptr;
+        }
+        _relayMode = false;
+        _relayRegistry = nullptr;
+    }
+
     for (auto it = _sessions.begin(); it != _sessions.end(); ++it) {
         RecvSession& sess = it.value();
         if (sess.currentFile) {
@@ -135,14 +183,17 @@ void P2PServer::onDisconnected() {
 void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
     auto it = _sessions.find(socket);
     if (it == _sessions.end()) return;
-    RecvSession& sess = it.value();
+    processSessionMessage(it.value(), jsonStr);
+}
 
+// 通用消息处理（直连和中转共用）
+void P2PServer::processSessionMessage(RecvSession& sess, const std::string& jsonStr) {
     try {
         auto j = nlohmann::json::parse(jsonStr);
         std::string type = j.at("type").get<std::string>();
 
-        qDebug() << "[P2PServer] processMessage: type=" << QString::fromStdString(type)
-                 << " from" << socket->peerAddress().toString()
+        qDebug() << "[P2PServer] processSessionMessage: type=" << QString::fromStdString(type)
+                 << " relayMode=" << _relayMode
                  << " json=" << QString::fromStdString(jsonStr).left(300);
 
         if (type == "push_hello") {
@@ -153,18 +204,15 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
             sess.successCount = 0;
             sess.failedCount = 0;
 
-            // 确保接收基础目录存在
             QDir().mkpath(_basePath);
 
             PushReady ready;
-            std::string frame = encode_frame(nlohmann::json(ready).dump());
-            socket->write(frame.data(), static_cast<qint64>(frame.size()));
+            sendResponseMessage(sess.socket, nlohmann::json(ready).dump());
 
         } else if (type == "file_start") {
             // 收到文件开始：准备写入新文件
             auto fs = j.get<FileStart>();
 
-            // 关闭上一个未关闭的文件（如果有）
             if (sess.currentFile) {
                 sess.currentFile->close();
                 delete sess.currentFile;
@@ -173,7 +221,7 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
 
             QString fullPath = _basePath + QString::fromStdString(fs.path);
             QFileInfo fi(fullPath);
-            QDir().mkpath(fi.absolutePath());  // 确保父目录存在
+            QDir().mkpath(fi.absolutePath());
 
             sess.currentFile = new QFile(fullPath);
             sess.currentFilePath = fullPath;
@@ -181,7 +229,6 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
             sess.currentFileReceivedBytes = 0;
 
             if (!sess.currentFile->open(QIODevice::WriteOnly)) {
-                // 文件打开失败：发送错误响应并跳过
                 delete sess.currentFile;
                 sess.currentFile = nullptr;
 
@@ -189,8 +236,7 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
                 fe.path = fs.path;
                 fe.status = "error";
                 fe.error = "无法打开文件进行写入";
-                std::string frame = encode_frame(nlohmann::json(fe).dump());
-                socket->write(frame.data(), static_cast<qint64>(frame.size()));
+                sendResponseMessage(sess.socket, nlohmann::json(fe).dump());
 
                 sess.failedCount++;
                 sess.completedFileCount++;
@@ -201,26 +247,21 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
             auto fd = j.get<FileData>();
 
             if (!sess.currentFile) {
-                // 没有打开的文件（异常情况），发送确认以解除发送端阻塞
                 FileAck ack;
                 ack.path = fd.path;
-                ack.offset = fd.offset + 65536;  // 估算值
-                std::string frame = encode_frame(nlohmann::json(ack).dump());
-                socket->write(frame.data(), static_cast<qint64>(frame.size()));
+                ack.offset = fd.offset + 65536;
+                sendResponseMessage(sess.socket, nlohmann::json(ack).dump());
                 return;
             }
 
-            // 解码 Base64 数据并写入文件
             QByteArray chunk = QByteArray::fromBase64(QByteArray::fromStdString(fd.data));
             sess.currentFile->write(chunk);
             sess.currentFileReceivedBytes += static_cast<uint64_t>(chunk.size());
 
-            // 发送确认，告知已收到的数据偏移量
             FileAck ack;
             ack.path = fd.path;
             ack.offset = fd.offset + static_cast<uint64_t>(chunk.size());
-            std::string frame = encode_frame(nlohmann::json(ack).dump());
-            socket->write(frame.data(), static_cast<qint64>(frame.size()));
+            sendResponseMessage(sess.socket, nlohmann::json(ack).dump());
 
         } else if (type == "file_end") {
             // 收到文件结束：关闭文件并通知上层
@@ -237,32 +278,36 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
                 emit fileReceived(sess.currentFilePath);
             } else {
                 sess.failedCount++;
-                QFile::remove(sess.currentFilePath);  // 删除接收失败的残缺文件
+                QFile::remove(sess.currentFilePath);
             }
 
             sess.completedFileCount++;
 
-            // 发送确认，通知发送端可以处理下一个文件
             FileAck ack;
             ack.path = fe.path;
-            ack.offset = 0;  // offset 为 0 表示确认 file_end
-            std::string frame = encode_frame(nlohmann::json(ack).dump());
-            socket->write(frame.data(), static_cast<qint64>(frame.size()));
+            ack.offset = 0;
+            sendResponseMessage(sess.socket, nlohmann::json(ack).dump());
 
         } else if (type == "transfer_done") {
-            // 所有文件传输完毕：回复 bye 并关闭连接
+            // 所有文件传输完毕：回复 bye
             auto td = j.get<TransferDone>();
             sess.successCount = td.success;
             sess.failedCount = td.failed;
 
             Bye bye;
-            std::string frame = encode_frame(nlohmann::json(bye).dump());
-            socket->write(frame.data(), static_cast<qint64>(frame.size()));
+            sendResponseMessage(sess.socket, nlohmann::json(bye).dump());
 
             emit transferCompleted(sess.successCount, sess.failedCount);
 
-            socket->flush();
-            socket->disconnectFromHost();
+            // 中转模式下不需要断开连接
+            if (!_relayMode && sess.socket) {
+                sess.socket->flush();
+                sess.socket->disconnectFromHost();
+            } else if (_relayMode) {
+                _relayMode = false;
+                _relayRegistry = nullptr;
+                _relaySession = RecvSession();
+            }
 
         } else if (type == "list_request") {
             // 收到目录浏览请求：列出指定目录并返回结果
@@ -270,7 +315,6 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
             ListResponse resp;
             resp.path = req.path;
 
-            // 解析路径：空字符串或 "/" 表示主目录
             QString browsePath = req.path.empty()
                 ? QDir::homePath()
                 : QString::fromStdString(req.path);
@@ -281,9 +325,7 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
             QDir dir(browsePath);
             if (!dir.exists()) {
                 resp.error = "目录未找到: " + req.path;
-                qDebug() << "[P2PServer] list_request: directory not found!";
             } else {
-                // 列出所有文件和目录（包含隐藏文件，目录优先排序）
                 QFileInfoList entries = dir.entryInfoList(
                     QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden,
                     QDir::DirsFirst | QDir::Name);
@@ -294,21 +336,20 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
                     de.size = fi.isDir() ? 0 : static_cast<uint64_t>(fi.size());
                     resp.entries.push_back(std::move(de));
                 }
-                qDebug() << "[P2PServer] list_request: found" << entries.size() << "entries";
             }
 
-            // 发送响应后断开连接（一次性浏览）
-            std::string frame = encode_frame(nlohmann::json(resp).dump());
-            qDebug() << "[P2PServer] list_request: sending response, frame_size=" << frame.size();
-            socket->write(frame.data(), static_cast<qint64>(frame.size()));
-            socket->flush();
-            socket->disconnectFromHost();
+            sendResponseMessage(sess.socket, nlohmann::json(resp).dump());
+
+            if (!_relayMode && sess.socket) {
+                sess.socket->flush();
+                sess.socket->disconnectFromHost();
+            }
 
         } else {
             qDebug() << "[P2PServer] WARNING: unknown message type:" << QString::fromStdString(type);
         }
     } catch (const std::exception& e) {
-        qDebug() << "[P2PServer] processMessage EXCEPTION:" << e.what();
+        qDebug() << "[P2PServer] processSessionMessage EXCEPTION:" << e.what();
         emit errorOccurred(QString::fromStdString(e.what()));
     }
 }

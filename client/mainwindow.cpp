@@ -13,6 +13,8 @@
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <QDebug>
+#include <QStyle>
+#include <QIcon>
 #include <random>
 
 // ============================================================
@@ -47,6 +49,11 @@ MainWindow::MainWindow(QWidget* parent)
     // 浏览信号连接（通过注册服务器中转）
     connect(_registry, &RegistryClient::browseResult, this, &MainWindow::onRemoteListingReceived);
     connect(_registry, &RegistryClient::browseError, this, &MainWindow::onRemoteBrowseError);
+
+    // 文件传输中继信号连接
+    connect(_registry, &RegistryClient::transferForwardReceived, this, &MainWindow::onTransferForwardReceived);
+    connect(_registry, &RegistryClient::transferAccepted, this, &MainWindow::onTransferAccepted);
+    connect(_registry, &RegistryClient::transferRelayMessage, this, &MainWindow::onTransferRelayMessage);
 
     // --- 中央控件 ---
     QWidget* central = new QWidget(this);
@@ -286,12 +293,13 @@ void MainWindow::onSendClicked() {
         // 将文件添加到传输队列表格
         addToTransferQueue(allFiles);
 
-        // 如果当前没有传输任务，立即开始
+        // 通过服务器中转发起文件传输请求
         if (!_transfer->isBusy()) {
-            _transfer->startTransfer(
+            _pendingRelayFiles = allFiles;
+            _registry->sendTransferRequest(
                 QString::fromStdString(_selectedPeer.ip),
                 static_cast<quint16>(_selectedPeer.port),
-                allFiles);
+                allFiles.size());
         }
         _selectedFiles.clear();
     }
@@ -447,6 +455,49 @@ void MainWindow::onTransferError(const QString& message) {
 }
 
 // ============================================================
+//  文件传输中继
+// ============================================================
+
+// 收到传入的传输请求（作为接收端）：自动接受并准备接收
+void MainWindow::onTransferForwardReceived(int relayId, int fileCount) {
+    qDebug() << "[MainWindow] onTransferForwardReceived: relayId=" << relayId
+             << " fileCount=" << fileCount;
+
+    // 自动接受传输
+    _registry->sendTransferAccept(relayId, true);
+
+    // 启动中转接收模式
+    _p2pServer->startRelayReceive(_registry, relayId, fileCount);
+}
+
+// 传输请求被接受/拒绝（作为发送端）
+void MainWindow::onTransferAccepted(int relayId, bool accepted) {
+    qDebug() << "[MainWindow] onTransferAccepted: relayId=" << relayId
+             << " accepted=" << accepted;
+
+    if (accepted) {
+        // 开始中转传输
+        _relayTransferId = relayId;
+        _transfer->startRelayTransfer(_registry, relayId, _pendingRelayFiles);
+        _pendingRelayFiles.clear();
+    } else {
+        QMessageBox::information(this, QStringLiteral("传输被拒绝"),
+                                 QStringLiteral("对端拒绝了文件传输请求"));
+        _pendingRelayFiles.clear();
+    }
+}
+
+// 收到中转的 P2P 协议消息：路由到发送器或接收器
+void MainWindow::onTransferRelayMessage(int relayId, const std::string& payload) {
+    // 路由到发送器（P2PTransfer）或接收器（P2PServer）
+    if (_transfer->isBusy()) {
+        _transfer->injectRelayMessage(payload);
+    } else {
+        _p2pServer->injectRelayMessage(payload);
+    }
+}
+
+// ============================================================
 //  远程目录浏览
 // ============================================================
 
@@ -492,6 +543,12 @@ void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<
     for (const auto& e : entries) {
         QList<QStandardItem*> row;
         auto* nameItem = new QStandardItem(QString::fromStdString(e.name));
+        // 设置图标
+        if (e.isDir) {
+            nameItem->setIcon(QApplication::style()->standardIcon(QStyle::SP_DirIcon));
+        } else {
+            nameItem->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileIcon));
+        }
         // 将 isDir 标志存储在 UserRole 中，用于双击判断
         nameItem->setData(e.isDir, Qt::UserRole);
         row.append(nameItem);

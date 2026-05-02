@@ -47,6 +47,14 @@ private:
     std::unordered_map<int, int> _browse_map;
     int _next_req_id = 1;
 
+    // Transfer relay: relay_id → {sender_fd, target_fd}
+    struct TransferRelaySession {
+        int sender_fd;
+        int target_fd;
+    };
+    std::unordered_map<int, TransferRelaySession> _transfer_relays;
+    int _next_relay_id = 1;
+
     static std::string peer_key(const std::string& ip, int port) {
         return ip + ":" + std::to_string(port);
     }

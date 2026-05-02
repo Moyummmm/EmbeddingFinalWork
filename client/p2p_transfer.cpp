@@ -1,4 +1,5 @@
 #include "p2p_transfer.h"
+#include "registry_client.h"
 #include "protocol.h"
 
 #include <QDir>
@@ -22,7 +23,59 @@ P2PTransfer::~P2PTransfer() {
     abort();
 }
 
-// 开始向对端传输文件
+// 统一发送接口：根据模式选择直连或中转
+void P2PTransfer::sendJsonMessage(const std::string& jsonStr) {
+    if (_relayMode) {
+        if (_relayRegistry) {
+            _relayRegistry->sendTransferRelay(_relayId, jsonStr);
+        }
+    } else {
+        std::string frame = encode_frame(jsonStr);
+        _socket->write(frame.data(), static_cast<qint64>(frame.size()));
+    }
+}
+
+// 中转模式：通过服务器中转传输文件
+void P2PTransfer::startRelayTransfer(RegistryClient* registry, int relayId,
+                                      const QStringList& fileList)
+{
+    if (_state != State::Idle) {
+        qDebug() << "[P2PTransfer] startRelayTransfer: not idle, state=" << static_cast<int>(_state);
+        emit errorOccurred(QStringLiteral("传输已在进行中"));
+        return;
+    }
+
+    _fileQueue = fileList;
+    if (_fileQueue.isEmpty()) {
+        qDebug() << "[P2PTransfer] startRelayTransfer: empty file list";
+        emit errorOccurred(QStringLiteral("没有可发送的文件"));
+        return;
+    }
+
+    _fileIndex = 0;
+    _successCount = 0;
+    _failedCount = 0;
+    _relayMode = true;
+    _relayId = relayId;
+    _relayRegistry = registry;
+    _state = State::Handshake;
+
+    qDebug() << "[P2PTransfer] startRelayTransfer: relayId=" << relayId
+             << " files=" << fileList.size();
+
+    // 发送 push_hello
+    PushHello hello;
+    hello.count = _fileQueue.size();
+    sendJsonMessage(nlohmann::json(hello).dump());
+}
+
+// 注入中转模式下收到的对端消息
+void P2PTransfer::injectRelayMessage(const std::string& jsonStr) {
+    qDebug() << "[P2PTransfer] injectRelayMessage, state=" << static_cast<int>(_state);
+    processMessage(jsonStr);
+}
+
+// 开始向对端传输文件（直连模式）
 void P2PTransfer::startTransfer(const QString& peerIp, quint16 peerPort,
                                 const QStringList& fileList)
 {
@@ -43,6 +96,7 @@ void P2PTransfer::startTransfer(const QString& peerIp, quint16 peerPort,
     _successCount = 0;
     _failedCount = 0;
     _state = State::Connecting;
+    _relayMode = false;
 
     qDebug() << "[P2PTransfer] startTransfer: target=" << peerIp << ":" << peerPort
              << " files=" << fileList.size();
@@ -55,6 +109,9 @@ void P2PTransfer::startTransfer(const QString& peerIp, quint16 peerPort,
 // 中止当前传输，关闭文件和连接
 void P2PTransfer::abort() {
     _state = State::Idle;
+    _relayMode = false;
+    _relayId = 0;
+    _relayRegistry = nullptr;
     if (_currentFile && _currentFile->isOpen()) {
         _currentFile->close();
     }
@@ -75,8 +132,7 @@ void P2PTransfer::onConnected() {
     // 发送 push_hello，告知对端即将发送的文件数量
     PushHello hello;
     hello.count = _fileQueue.size();
-    std::string frame = encode_frame(nlohmann::json(hello).dump());
-    _socket->write(frame.data(), static_cast<qint64>(frame.size()));
+    sendJsonMessage(nlohmann::json(hello).dump());
 }
 
 // 连接意外断开：标记当前文件失败，剩余文件全部标记为失败
@@ -201,8 +257,7 @@ void P2PTransfer::sendNextFile() {
         td.success = _successCount;
         td.failed = _failedCount;
         qDebug() << "[P2PTransfer] all files done, sending transfer_done: success=" << _successCount << " failed=" << _failedCount;
-        std::string frame = encode_frame(nlohmann::json(td).dump());
-        _socket->write(frame.data(), static_cast<qint64>(frame.size()));
+        sendJsonMessage(nlohmann::json(td).dump());
         return;
     }
 
@@ -242,8 +297,7 @@ void P2PTransfer::sendNextFile() {
     FileStart fs;
     fs.path = _currentRelativePath.toStdString();
     fs.size = _currentFileSize;
-    std::string frame = encode_frame(nlohmann::json(fs).dump());
-    _socket->write(frame.data(), static_cast<qint64>(frame.size()));
+    sendJsonMessage(nlohmann::json(fs).dump());
 
     _fileState = FileState::SendingData;
     sendFileChunk();  // 开始发送第一个数据块
@@ -271,8 +325,7 @@ void P2PTransfer::sendFileChunk() {
         FileEnd fe;
         fe.path = _currentRelativePath.toStdString();
         fe.status = "ok";
-        std::string frame = encode_frame(nlohmann::json(fe).dump());
-        _socket->write(frame.data(), static_cast<qint64>(frame.size()));
+        sendJsonMessage(nlohmann::json(fe).dump());
         return;
     }
 
@@ -285,8 +338,7 @@ void P2PTransfer::sendFileChunk() {
     fd.offset = _currentFileSent;
     fd.data = chunk.toBase64().toStdString();  // 二进制数据进行 Base64 编码
 
-    std::string frame = encode_frame(nlohmann::json(fd).dump());
-    _socket->write(frame.data(), static_cast<qint64>(frame.size()));
+    sendJsonMessage(nlohmann::json(fd).dump());
 
     _currentFileSent += static_cast<uint64_t>(chunk.size());
 

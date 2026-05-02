@@ -1713,8 +1713,8 @@ D:/codes/test/temp/client/p2p_server.h
  mdp:D:/tools/qt/Qt/6.6.0/mingw_64/include/QtNetwork/qtnetworkexports.h
  mdp:D:/tools/qt/Qt/6.6.0/mingw_64/include/QtNetwork/qtnetworkglobal.h
 D:/codes/test/temp/client/mainwindow.cpp
-D:/codes/test/temp/client/protocol.h
 D:/codes/test/temp/client/main.cpp
+D:/codes/test/temp/client/protocol.h
 D:/codes/test/temp/client/p2p_transfer.h
  mmc:Q_OBJECT
  mdp:D:/codes/test/temp/client/build/client_autogen/moc_predefs.h

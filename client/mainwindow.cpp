@@ -492,7 +492,6 @@ void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<
     for (const auto& e : entries) {
         QList<QStandardItem*> row;
         auto* nameItem = new QStandardItem(QString::fromStdString(e.name));
-        nameItem->setData(e.isDir ? QStringLiteral("📁") : formatFileSize(e.size), Qt::DisplayRole);
         // 将 isDir 标志存储在 UserRole 中，用于双击判断
         nameItem->setData(e.isDir, Qt::UserRole);
         row.append(nameItem);

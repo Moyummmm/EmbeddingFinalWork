@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QNetworkProxy>
 
 P2PTransfer::P2PTransfer(QObject* parent)
     : QObject(parent)
@@ -38,6 +39,8 @@ void P2PTransfer::startTransfer(const QString& peerIp, quint16 peerPort,
     _failedCount = 0;
     _state = State::Connecting;
 
+    // Bypass system proxy — raw TCP doesn't work through HTTP proxy
+    _socket->setProxy(QNetworkProxy::NoProxy);
     _socket->connectToHost(peerIp, peerPort);
 }
 

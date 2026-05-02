@@ -2,6 +2,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QNetworkProxy>
 
 RegistryClient::RegistryClient(QObject* parent)
     : QObject(parent)
@@ -23,6 +24,8 @@ void RegistryClient::connectToServer(const QString& host, quint16 port) {
     }
     _state = State::Connecting;
     _recvBuf.clear();
+    // Bypass system proxy — raw TCP doesn't work through HTTP proxy
+    _socket->setProxy(QNetworkProxy::NoProxy);
     _socket->connectToHost(host, port);
 }
 

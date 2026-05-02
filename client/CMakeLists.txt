@@ -40,4 +40,22 @@ if(WIN32)
     set_target_properties(client PROPERTIES
         WIN32_EXECUTABLE $<CONFIG:Release>
     )
+
+    # Automatically run windeployqt after building so the exe is
+    # directly runnable (copies Qt DLLs next to the binary).
+    get_target_property(_qt6_core_loc Qt6::Core IMPORTED_LOCATION)
+    get_filename_component(_qt6_bin_dir "${_qt6_core_loc}" DIRECTORY)
+
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt
+        HINTS "${_qt6_bin_dir}"
+    )
+
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET client POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}" "$<TARGET_FILE:client>"
+            COMMENT "windeployqt: copying Qt DLLs..."
+        )
+    else()
+        message(WARNING "windeployqt not found — run it manually before launching client.exe")
+    endif()
 endif()

@@ -1,0 +1,16 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "mingw",
+            "displayName": "MinGW (GCC 11.2.0)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "D:/tools/gcc/mingw64-11.2.0/bin/gcc.exe",
+                "CMAKE_CXX_COMPILER": "D:/tools/gcc/mingw64-11.2.0/bin/g++.exe",
+                "CMAKE_MAKE_PROGRAM": "D:/tools/gcc/mingw64/bin/ninja.exe"
+            }
+        }
+    ]
+}

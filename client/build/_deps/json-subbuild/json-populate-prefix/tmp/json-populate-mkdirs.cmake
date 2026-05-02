@@ -6,22 +6,22 @@ cmake_minimum_required(VERSION ${CMAKE_VERSION}) # this file comes with cmake
 # If CMAKE_DISABLE_SOURCE_CHANGES is set to true and the source directory is an
 # existing directory in our source tree, calling file(MAKE_DIRECTORY) on it
 # would cause a fatal error, even though it would be a no-op.
-if(NOT EXISTS "/home/zhumayuan/codes/embedding/client/build/_deps/json-src")
-  file(MAKE_DIRECTORY "/home/zhumayuan/codes/embedding/client/build/_deps/json-src")
+if(NOT EXISTS "D:/codes/test/temp/client/build/_deps/json-src")
+  file(MAKE_DIRECTORY "D:/codes/test/temp/client/build/_deps/json-src")
 endif()
 file(MAKE_DIRECTORY
-  "/home/zhumayuan/codes/embedding/client/build/_deps/json-build"
-  "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix"
-  "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/tmp"
-  "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp"
-  "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src"
-  "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp"
+  "D:/codes/test/temp/client/build/_deps/json-build"
+  "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix"
+  "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/tmp"
+  "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp"
+  "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src"
+  "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/${subDir}")
+    file(MAKE_DIRECTORY "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp${cfgdir}") # cfgdir has leading slash
 endif()

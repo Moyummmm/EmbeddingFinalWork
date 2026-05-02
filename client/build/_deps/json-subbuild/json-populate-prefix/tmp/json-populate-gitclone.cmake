@@ -3,11 +3,11 @@
 
 cmake_minimum_required(VERSION ${CMAKE_VERSION}) # this file comes with cmake
 
-if(EXISTS "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt" AND EXISTS "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitinfo.txt" AND
-  "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt" IS_NEWER_THAN "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitinfo.txt")
+if(EXISTS "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt" AND EXISTS "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitinfo.txt" AND
+  "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt" IS_NEWER_THAN "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitinfo.txt")
   message(VERBOSE
     "Avoiding repeated git clone, stamp file is up to date: "
-    "'/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt'"
+    "'D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt'"
   )
   return()
 endif()
@@ -22,12 +22,12 @@ else()
 endif()
 
 execute_process(
-  COMMAND ${CMAKE_COMMAND} -E rm -rf "/home/zhumayuan/codes/embedding/client/build/_deps/json-src"
+  COMMAND ${CMAKE_COMMAND} -E rm -rf "D:/codes/test/temp/client/build/_deps/json-src"
   RESULT_VARIABLE error_code
   ${maybe_show_command}
 )
 if(error_code)
-  message(FATAL_ERROR "Failed to remove directory: '/home/zhumayuan/codes/embedding/client/build/_deps/json-src'")
+  message(FATAL_ERROR "Failed to remove directory: 'D:/codes/test/temp/client/build/_deps/json-src'")
 endif()
 
 # try the clone 3 times in case there is an odd git clone issue
@@ -35,9 +35,9 @@ set(error_code 1)
 set(number_of_tries 0)
 while(error_code AND number_of_tries LESS 3)
   execute_process(
-    COMMAND "/usr/bin/git"
+    COMMAND "C:/Program Files/Git/cmd/git.exe"
             clone --no-checkout --config "advice.detachedHead=false" "https://github.com/nlohmann/json.git" "json-src"
-    WORKING_DIRECTORY "/home/zhumayuan/codes/embedding/client/build/_deps"
+    WORKING_DIRECTORY "D:/codes/test/temp/client/build/_deps"
     RESULT_VARIABLE error_code
     ${maybe_show_command}
   )
@@ -51,9 +51,9 @@ if(error_code)
 endif()
 
 execute_process(
-  COMMAND "/usr/bin/git"
+  COMMAND "C:/Program Files/Git/cmd/git.exe"
           checkout "v3.11.3" --
-  WORKING_DIRECTORY "/home/zhumayuan/codes/embedding/client/build/_deps/json-src"
+  WORKING_DIRECTORY "D:/codes/test/temp/client/build/_deps/json-src"
   RESULT_VARIABLE error_code
   ${maybe_show_command}
 )
@@ -64,24 +64,24 @@ endif()
 set(init_submodules TRUE)
 if(init_submodules)
   execute_process(
-    COMMAND "/usr/bin/git" 
+    COMMAND "C:/Program Files/Git/cmd/git.exe" 
             submodule update --recursive --init 
-    WORKING_DIRECTORY "/home/zhumayuan/codes/embedding/client/build/_deps/json-src"
+    WORKING_DIRECTORY "D:/codes/test/temp/client/build/_deps/json-src"
     RESULT_VARIABLE error_code
     ${maybe_show_command}
   )
 endif()
 if(error_code)
-  message(FATAL_ERROR "Failed to update submodules in: '/home/zhumayuan/codes/embedding/client/build/_deps/json-src'")
+  message(FATAL_ERROR "Failed to update submodules in: 'D:/codes/test/temp/client/build/_deps/json-src'")
 endif()
 
 # Complete success, update the script-last-run stamp file:
 #
 execute_process(
-  COMMAND ${CMAKE_COMMAND} -E copy "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitinfo.txt" "/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt"
+  COMMAND ${CMAKE_COMMAND} -E copy "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitinfo.txt" "D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt"
   RESULT_VARIABLE error_code
   ${maybe_show_command}
 )
 if(error_code)
-  message(FATAL_ERROR "Failed to copy script-last-run stamp file: '/home/zhumayuan/codes/embedding/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt'")
+  message(FATAL_ERROR "Failed to copy script-last-run stamp file: 'D:/codes/test/temp/client/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/json-populate-gitclone-lastrun.txt'")
 endif()

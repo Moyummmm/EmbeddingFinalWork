@@ -212,8 +212,9 @@ void Server::process_message(int fd, const std::string& json_str) {
         auto req = nlohmann::json::parse(json_str).get<Request>();
 
         if (req.type == "register") {
+            // Use the IP from the TCP connection, not from the client message
             PeerInfo peer;
-            peer.ip = req.ip;
+            peer.ip = conn.peer_ip;
             peer.port = req.port;
             peer.name = req.name;
 
@@ -241,13 +242,13 @@ void Server::process_message(int fd, const std::string& json_str) {
             send_response(fd, nlohmann::json(resp).dump());
 
         } else if (req.type == "unregister") {
-            bool ok = _registry.unregister_peer(req.ip, req.port);
+            // Use the IP from the TCP connection, not from the client message
+            bool ok = _registry.unregister_peer(conn.peer_ip, req.port);
 
             Response resp;
             resp.type = "unregister_ack";
 
-            std::cout << "[unregister] " << req.ip << ":" << req.port
-                      << " from " << conn.peer_ip << ":" << conn.peer_port
+            std::cout << "[unregister] " << conn.peer_ip << ":" << req.port
                       << " -> " << (ok ? "ok" : "not found") << std::endl;
 
             send_response(fd, nlohmann::json(resp).dump());

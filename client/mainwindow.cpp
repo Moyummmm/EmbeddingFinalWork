@@ -285,9 +285,15 @@ void MainWindow::onRegDisconnected() {
 
 void MainWindow::onRegRegisterAck(const std::vector<PeerInfo>& peers) {
     _registered = true;
-    _selfInfo.ip = _registry->localIp().toStdString();
-    _selfInfo.port = static_cast<int>(_p2pPortSpin->value());
-    _selfInfo.name = _nameEdit->text().trimmed().toStdString();
+    // Find our own entry in the returned peer list (server determined our IP)
+    std::string myName = _nameEdit->text().trimmed().toStdString();
+    int myPort = _p2pPortSpin->value();
+    for (const auto& p : peers) {
+        if (p.name == myName && p.port == myPort) {
+            _selfInfo = p;
+            break;
+        }
+    }
 
     updatePeerList(peers);
     updateWindowTitle();

@@ -63,10 +63,11 @@ private:
     void onRemoteBrowseError(const QString& message);
 
     // 文件传输中继
-    void onTransferForwardReceived(int relayId, int fileCount);
+    void onTransferForwardReceived(int relayId, int fileCount, const QString& targetPath);
     void onTransferAccepted(int relayId, bool accepted);
     void onTransferRelayMessage(int relayId, const std::string& payload);
-    void onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths);
+    void onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths,
+                               const QString& targetPath);
 
     // 双栏浏览
     void onLocalItemDoubleClicked(const QModelIndex& index);

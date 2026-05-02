@@ -31,6 +31,8 @@ public:
 
     // 获取文件保存的基础目录
     QString receivePath() const { return _basePath; }
+    // 设置文件保存的基础目录
+    void setBasePath(const QString& path) { _basePath = path; }
 
     // 中转模式：开始接收通过服务器中转的文件
     void startRelayReceive(RegistryClient* registry, int relayId, int fileCount);

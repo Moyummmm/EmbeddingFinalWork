@@ -38,13 +38,15 @@ public:
                             const std::vector<DirEntry>& entries, const std::string& error);
 
     // 通过注册服务器中转文件传输
-    void sendTransferRequest(const QString& targetIp, quint16 targetPort, int fileCount);
+    void sendTransferRequest(const QString& targetIp, quint16 targetPort, int fileCount,
+                             const QString& targetPath = QString());
     void sendTransferAccept(int relayId, bool accepted);
     void sendTransferRelay(int relayId, const std::string& payload);
 
     // 通过注册服务器中转拉取请求（请求对端发送文件到本机）
     void sendPullRequest(const QString& targetIp, quint16 targetPort,
-                         const std::vector<std::string>& filePaths);
+                         const std::vector<std::string>& filePaths,
+                         const QString& targetPath = QString());
 
     // 获取当前状态
     State state() const { return _state; }
@@ -65,10 +67,11 @@ signals:
     void browseError(const QString& message);       // 浏览错误
 
     // 文件传输中继信号
-    void transferForwardReceived(int relayId, int fileCount);    // 收到传输转发通知（作为接收端）
-    void transferAccepted(int relayId, bool accepted);           // 传输请求被接受/拒绝（作为发送端）
-    void transferRelayMessage(int relayId, const std::string& payload); // 收到中转的P2P协议消息
-    void pullForwardReceived(int relayId, const std::vector<std::string>& filePaths); // 收到拉取请求
+    void transferForwardReceived(int relayId, int fileCount, const QString& targetPath);
+    void transferAccepted(int relayId, bool accepted);
+    void transferRelayMessage(int relayId, const std::string& payload);
+    void pullForwardReceived(int relayId, const std::vector<std::string>& filePaths,
+                             const QString& targetPath);
 
 private slots:
     void onConnected();                             // TCP 连接建立

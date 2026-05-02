@@ -398,11 +398,23 @@ void MainWindow::onTransferError(const QString& message) {
 //  文件传输中继
 // ============================================================
 
-void MainWindow::onTransferForwardReceived(int relayId, int fileCount) {
+void MainWindow::onTransferForwardReceived(int relayId, int fileCount, const QString& targetPath) {
     qDebug() << "[MainWindow] onTransferForwardReceived: relayId=" << relayId
-             << " fileCount=" << fileCount;
+             << " fileCount=" << fileCount << " targetPath=" << targetPath;
+    // 设置接收保存路径
+    if (!targetPath.isEmpty()) {
+        _p2pServer->setBasePath(targetPath.endsWith('/') ? targetPath : targetPath + QStringLiteral("/"));
+    }
     _registry->sendTransferAccept(relayId, true);
     _p2pServer->startRelayReceive(_registry, relayId, fileCount);
+    // 恢复默认路径
+    if (!targetPath.isEmpty()) {
+        QTimer::singleShot(0, this, [this]() {
+            _p2pServer->setBasePath(
+                QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+                + QStringLiteral("/P2P_Received/"));
+        });
+    }
 }
 
 void MainWindow::onTransferAccepted(int relayId, bool accepted) {
@@ -429,7 +441,9 @@ void MainWindow::onTransferRelayMessage(int relayId, const std::string& payload)
 }
 
 // 收到拉取请求：作为发送端，读取文件并通过中继发送回去
-void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths) {
+void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths,
+                                       const QString& targetPath) {
+    Q_UNUSED(targetPath);  // pull_fwd 的 targetPath 由请求方设置，此处不需要
     qDebug() << "[MainWindow] onPullForwardReceived: relayId=" << relayId
              << " files=" << filePaths.size();
 
@@ -581,7 +595,8 @@ void MainWindow::onSendRight() {
     _registry->sendTransferRequest(
         QString::fromStdString(_selectedPeer.ip),
         static_cast<quint16>(_selectedPeer.port),
-        allFiles.size());
+        allFiles.size(),
+        _remotePath);  // 远端栏当前目录作为保存目标
 }
 
 // ← 从远端拉取选中文件到本机
@@ -631,7 +646,8 @@ void MainWindow::onSendLeft() {
     _registry->sendPullRequest(
         QString::fromStdString(_selectedPeer.ip),
         static_cast<quint16>(_selectedPeer.port),
-        remotePaths);
+        remotePaths,
+        _localModel->filePath(_localTree->rootIndex()));  // 本机栏当前目录作为保存目标
 }
 
 // ============================================================

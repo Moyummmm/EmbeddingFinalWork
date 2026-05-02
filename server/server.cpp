@@ -309,6 +309,9 @@ void Server::process_message(int fd, const std::string& json_str) {
                 fwd["type"] = "pull_fwd";
                 fwd["relay_id"] = relay_id;
                 fwd["file_paths"] = file_paths;
+                if (j.contains("target_path")) {
+                    fwd["target_path"] = j["target_path"];
+                }
 
                 std::cout << "[pull_request] relay_id=" << relay_id
                           << " sender_fd=" << fd_it->second << " target_fd=" << fd
@@ -421,6 +424,9 @@ void Server::process_message(int fd, const std::string& json_str) {
                 fwd["type"] = "transfer_fwd";
                 fwd["relay_id"] = relay_id;
                 fwd["file_count"] = file_count;
+                if (j.contains("target_path")) {
+                    fwd["target_path"] = j["target_path"];
+                }
 
                 std::cout << "[transfer_request] relay_id=" << relay_id
                           << " sender_fd=" << fd << " target_fd=" << fd_it->second

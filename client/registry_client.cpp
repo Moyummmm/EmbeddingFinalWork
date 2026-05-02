@@ -255,9 +255,10 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             // 收到服务器转发的传输请求（作为接收端）
             int relayId = j.value("relay_id", 0);
             int fileCount = j.value("file_count", 0);
+            QString targetPath = QString::fromStdString(j.value("target_path", std::string("")));
             qDebug() << "[RegistryClient] transfer_fwd: relayId=" << relayId
-                     << " fileCount=" << fileCount;
-            emit transferForwardReceived(relayId, fileCount);
+                     << " fileCount=" << fileCount << " targetPath=" << targetPath;
+            emit transferForwardReceived(relayId, fileCount, targetPath);
 
         } else if (type == "transfer_accept") {
             // 收到传输接受/拒绝响应（作为发送端）
@@ -280,9 +281,10 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             if (j.contains("file_paths")) {
                 filePaths = j["file_paths"].get<std::vector<std::string>>();
             }
+            QString targetPath = QString::fromStdString(j.value("target_path", std::string("")));
             qDebug() << "[RegistryClient] pull_fwd: relayId=" << relayId
-                     << " files=" << filePaths.size();
-            emit pullForwardReceived(relayId, filePaths);
+                     << " files=" << filePaths.size() << " targetPath=" << targetPath;
+            emit pullForwardReceived(relayId, filePaths, targetPath);
 
         } else {
             qDebug() << "[RegistryClient] WARNING: unknown message type:" << QString::fromStdString(type);
@@ -336,7 +338,8 @@ void RegistryClient::sendBrowseResponse(int reqId, const std::string& path,
 }
 
 // 通过注册服务器中转，向目标节点发送文件传输请求
-void RegistryClient::sendTransferRequest(const QString& targetIp, quint16 targetPort, int fileCount) {
+void RegistryClient::sendTransferRequest(const QString& targetIp, quint16 targetPort,
+                                          int fileCount, const QString& targetPath) {
     if (_state != State::Connected) {
         emit errorOccurred(QStringLiteral("未连接到注册服务器"));
         return;
@@ -347,9 +350,12 @@ void RegistryClient::sendTransferRequest(const QString& targetIp, quint16 target
     j["target_ip"] = targetIp.toStdString();
     j["target_port"] = targetPort;
     j["file_count"] = fileCount;
+    if (!targetPath.isEmpty()) {
+        j["target_path"] = targetPath.toStdString();
+    }
 
     qDebug() << "[RegistryClient] sendTransferRequest: target=" << targetIp << ":" << targetPort
-             << " files=" << fileCount;
+             << " files=" << fileCount << " targetPath=" << targetPath;
     sendMessage(j.dump());
 }
 
@@ -380,7 +386,8 @@ void RegistryClient::sendTransferRelay(int relayId, const std::string& payload) 
 
 // 发送拉取请求：请求对端将指定文件发送到本机
 void RegistryClient::sendPullRequest(const QString& targetIp, quint16 targetPort,
-                                      const std::vector<std::string>& filePaths) {
+                                      const std::vector<std::string>& filePaths,
+                                      const QString& targetPath) {
     if (_state != State::Connected) {
         emit errorOccurred(QStringLiteral("未连接到注册服务器"));
         return;
@@ -391,8 +398,11 @@ void RegistryClient::sendPullRequest(const QString& targetIp, quint16 targetPort
     j["target_ip"] = targetIp.toStdString();
     j["target_port"] = targetPort;
     j["file_paths"] = filePaths;
+    if (!targetPath.isEmpty()) {
+        j["target_path"] = targetPath.toStdString();
+    }
 
     qDebug() << "[RegistryClient] sendPullRequest: target=" << targetIp << ":" << targetPort
-             << " files=" << filePaths.size();
+             << " files=" << filePaths.size() << " targetPath=" << targetPath;
     sendMessage(j.dump());
 }

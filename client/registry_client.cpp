@@ -222,8 +222,35 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             std::string fwdPath = j.value("path", "");
             int reqId = j.value("req_id", 0);
             qDebug() << "[RegistryClient] browse_fwd received: path=" << QString::fromStdString(fwdPath)
-                     << " req_id=" << reqId
-                     << " WARNING: no handler implemented for browse_fwd!";
+                     << " req_id=" << reqId;
+
+            // 读取本地文件系统并返回结果
+            std::vector<DirEntry> entries;
+            std::string error;
+            std::string actualPath = fwdPath.empty() ? QDir::homePath().toStdString() : fwdPath;
+            QDir dir(QString::fromStdString(actualPath));
+
+            qDebug() << "[RegistryClient] browse_fwd: listing dir=" << QString::fromStdString(actualPath)
+                     << " exists=" << dir.exists();
+
+            if (!dir.exists()) {
+                error = "Directory not found: " + actualPath;
+            } else {
+                QFileInfoList list = dir.entryInfoList(QDir::AllEntries | QDir::NoDot | QDir::Hidden, QDir::DirsFirst);
+                for (const QFileInfo& fi : list) {
+                    DirEntry e;
+                    e.name = fi.fileName().toStdString();
+                    e.isDir = fi.isDir();
+                    e.size = fi.isDir() ? 0 : fi.size();
+                    entries.push_back(e);
+                }
+            }
+
+            qDebug() << "[RegistryClient] browse_fwd: sending response, entries=" << entries.size()
+                     << " error=" << QString::fromStdString(error);
+
+            // 通过服务器中转回送浏览结果
+            sendBrowseResponse(reqId, actualPath, entries, error);
         } else {
             qDebug() << "[RegistryClient] WARNING: unknown message type:" << QString::fromStdString(type);
         }

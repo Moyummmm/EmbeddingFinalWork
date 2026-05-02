@@ -276,7 +276,7 @@ void Server::process_message(int fd, const std::string& json_str) {
 
             send_response(fd, nlohmann::json(resp).dump());
 
-        } else if (type == "browse") {
+        } else if (type == "browse_request" || type == "browse") {
             // Relay browse request: client wants to browse a remote peer's filesystem
             std::string target_ip = j.value("target_ip", std::string(""));
             int target_port = j.value("target_port", 0);
@@ -300,7 +300,7 @@ void Server::process_message(int fd, const std::string& json_str) {
             if (fd_it == _peer_fds.end()) {
                 // Target peer not connected
                 nlohmann::json resp;
-                resp["type"] = "browse_result";
+                resp["type"] = "browse_response";
                 resp["path"] = path;
                 resp["error"] = "Target peer not found or offline";
                 std::cout << "[browse] ERROR: target " << tk << " not in _peer_fds" << std::endl;
@@ -330,9 +330,9 @@ void Server::process_message(int fd, const std::string& json_str) {
                 int requester_fd = map_it->second;
                 _browse_map.erase(map_it);
 
-                // Wrap as browse_result for the requester
+                // Wrap as browse_response for the requester
                 nlohmann::json result;
-                result["type"] = "browse_result";
+                result["type"] = "browse_response";
                 result["path"] = j.value("path", std::string(""));
                 result["error"] = j.value("error", std::string(""));
                 if (j.contains("entries")) {

@@ -1,5 +1,0 @@
-/home/zhumayuan/codes/embedding/server/build/CMakeFiles/server.dir
-/home/zhumayuan/codes/embedding/server/build/CMakeFiles/edit_cache.dir
-/home/zhumayuan/codes/embedding/server/build/CMakeFiles/rebuild_cache.dir
-/home/zhumayuan/codes/embedding/server/build/_deps/json-build/CMakeFiles/edit_cache.dir
-/home/zhumayuan/codes/embedding/server/build/_deps/json-build/CMakeFiles/rebuild_cache.dir

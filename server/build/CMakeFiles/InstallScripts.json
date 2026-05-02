@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/zhumayuan/codes/embedding/server/build/cmake_install.cmake",
-		"/home/zhumayuan/codes/embedding/server/build/_deps/json-build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

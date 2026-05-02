@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"D:/codes/test/temp/client/build/cmake_install.cmake",
-		"D:/codes/test/temp/client/build/_deps/json-build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

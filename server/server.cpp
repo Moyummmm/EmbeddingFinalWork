@@ -276,7 +276,7 @@ void Server::process_message(int fd, const std::string& json_str) {
                 resp["type"] = "browse_result";
                 resp["path"] = path;
                 resp["error"] = "Target peer not found or offline";
-                send_response(fd, encode_frame(resp.dump()));
+                send_response(fd, resp.dump());
             } else {
                 int req_id = _next_req_id++;
                 _browse_map[req_id] = fd;
@@ -290,7 +290,7 @@ void Server::process_message(int fd, const std::string& json_str) {
                 std::cout << "[browse] " << conn.peer_ip << " -> " << tk
                           << " path=" << path << " req_id=" << req_id << std::endl;
 
-                send_response(fd_it->second, encode_frame(fwd.dump()));
+                send_response(fd_it->second, fwd.dump());
             }
 
         } else if (type == "browse_response") {
@@ -316,7 +316,7 @@ void Server::process_message(int fd, const std::string& json_str) {
                 std::cout << "[browse_response] req_id=" << req_id
                           << " -> forwarding to requester fd=" << requester_fd << std::endl;
 
-                send_response(requester_fd, encode_frame(result.dump()));
+                send_response(requester_fd, result.dump());
             }
         }
         // unknown type: silently ignored

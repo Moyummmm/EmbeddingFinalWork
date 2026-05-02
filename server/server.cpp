@@ -209,21 +209,21 @@ void Server::process_message(int fd, const std::string& json_str) {
     auto& conn = it->second;
 
     try {
-        auto req = nlohmann::json::parse(json_str).get<Request>();
+        auto j = nlohmann::json::parse(json_str);
+        std::string type = j.at("type").get<std::string>();
 
-        if (req.type == "register") {
-            // Prefer client-reported IP over the TCP connection's peer IP.
-            // The TCP peer IP may be a NAT gateway address that other peers
-            // cannot reach directly. The client reports its own local IP
-            // (from its socket's localAddress) which is the actual address
-            // other peers on the same network can use.
+        if (type == "register") {
+            auto req = j.get<Request>();
             PeerInfo peer;
             peer.ip = req.ip.empty() ? conn.peer_ip : req.ip;
             peer.port = req.port;
             peer.name = req.name;
 
             auto peers = _registry.register_peer(peer);
-
+            // Track peer → fd mapping for browse relay
+            std::string pk = peer_key(peer.ip, peer.port);
+            _peer_fds[pk] = fd;
+            _fd_to_peer[fd] = pk;
             Response resp;
             resp.type = "register_ack";
             resp.peers = std::move(peers);
@@ -233,7 +233,7 @@ void Server::process_message(int fd, const std::string& json_str) {
 
             send_response(fd, nlohmann::json(resp).dump());
 
-        } else if (req.type == "query") {
+        } else if (type == "query") {
             auto peers = _registry.get_all_peers();
 
             Response resp;
@@ -245,11 +245,14 @@ void Server::process_message(int fd, const std::string& json_str) {
 
             send_response(fd, nlohmann::json(resp).dump());
 
-        } else if (req.type == "unregister") {
-            // Use the same IP logic as register
+        } else if (type == "unregister") {
+            auto req = j.get<Request>();
             std::string effectiveIp = req.ip.empty() ? conn.peer_ip : req.ip;
             bool ok = _registry.unregister_peer(effectiveIp, req.port);
-
+            // Clean up peer → fd mapping
+            std::string pk = peer_key(effectiveIp, req.port);
+            _peer_fds.erase(pk);
+            _fd_to_peer.erase(fd);
             Response resp;
             resp.type = "unregister_ack";
 
@@ -258,6 +261,63 @@ void Server::process_message(int fd, const std::string& json_str) {
 
             send_response(fd, nlohmann::json(resp).dump());
 
+        } else if (type == "browse") {
+            // Relay browse request: client wants to browse a remote peer's filesystem
+            std::string target_ip = j.value("target_ip", std::string(""));
+            int target_port = j.value("target_port", 0);
+            std::string path = j.value("path", std::string(""));
+
+            std::string tk = peer_key(target_ip, target_port);
+            auto fd_it = _peer_fds.find(tk);
+
+            if (fd_it == _peer_fds.end()) {
+                // Target peer not connected
+                nlohmann::json resp;
+                resp["type"] = "browse_result";
+                resp["path"] = path;
+                resp["error"] = "Target peer not found or offline";
+                send_response(fd, encode_frame(resp.dump()));
+            } else {
+                int req_id = _next_req_id++;
+                _browse_map[req_id] = fd;
+
+                // Forward as browse_fwd to target
+                nlohmann::json fwd;
+                fwd["type"] = "browse_fwd";
+                fwd["path"] = path;
+                fwd["req_id"] = req_id;
+
+                std::cout << "[browse] " << conn.peer_ip << " -> " << tk
+                          << " path=" << path << " req_id=" << req_id << std::endl;
+
+                send_response(fd_it->second, encode_frame(fwd.dump()));
+            }
+
+        } else if (type == "browse_response") {
+            // Target peer sends back browse result, forward to requester
+            int req_id = j.value("req_id", 0);
+            auto map_it = _browse_map.find(req_id);
+
+            if (map_it != _browse_map.end()) {
+                int requester_fd = map_it->second;
+                _browse_map.erase(map_it);
+
+                // Wrap as browse_result for the requester
+                nlohmann::json result;
+                result["type"] = "browse_result";
+                result["path"] = j.value("path", std::string(""));
+                result["error"] = j.value("error", std::string(""));
+                if (j.contains("entries")) {
+                    result["entries"] = j["entries"];
+                } else {
+                    result["entries"] = nlohmann::json::array();
+                }
+
+                std::cout << "[browse_response] req_id=" << req_id
+                          << " -> forwarding to requester fd=" << requester_fd << std::endl;
+
+                send_response(requester_fd, encode_frame(result.dump()));
+            }
         }
         // unknown type: silently ignored
 
@@ -285,6 +345,23 @@ void Server::close_connection(int fd) {
                   << it->second.peer_port << std::endl;
         _connections.erase(it);
     }
+
+    // Clean up peer → fd mapping
+    auto fd_it = _fd_to_peer.find(fd);
+    if (fd_it != _fd_to_peer.end()) {
+        _peer_fds.erase(fd_it->second);
+        _fd_to_peer.erase(fd_it);
+    }
+
+    // Clean up pending browse requests from this fd
+    for (auto bit = _browse_map.begin(); bit != _browse_map.end(); ) {
+        if (bit->second == fd) {
+            bit = _browse_map.erase(bit);
+        } else {
+            ++bit;
+        }
+    }
+
     epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
     close(fd);
 }

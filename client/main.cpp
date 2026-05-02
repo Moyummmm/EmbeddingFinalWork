@@ -13,8 +13,10 @@
 #include <windows.h>
 #endif
 
+// 全局日志文件，用于记录启动过程中的调试信息
 static QFile g_logFile;
 
+// 向日志文件追加一条带时间戳的消息
 static void logStartup(const QString& msg) {
     if (!g_logFile.isOpen()) {
         QString logPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
@@ -31,20 +33,19 @@ static void logStartup(const QString& msg) {
 }
 
 int main(int argc, char* argv[]) {
-    // On Windows, try to attach to parent console so printf/stderr are visible
-    // when launched from cmd/powershell. Does nothing if no console.
+    // Windows 平台：尝试附加到父进程控制台，以便从 cmd/powershell 启动时能看到 printf/stderr 输出
 #ifdef _WIN32
     AttachConsole(ATTACH_PARENT_PROCESS);
 #endif
 
-    logStartup(QStringLiteral("=== P2P Client starting ==="));
+    logStartup(QStringLiteral("=== P2P 客户端启动 ==="));
 
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("P2PFileTransfer"));
-    logStartup(QStringLiteral("QApplication created"));
+    logStartup(QStringLiteral("QApplication 已创建"));
 
-    // Parse optional p2p_port argument
-    quint16 p2pPort = 0;  // 0 = random
+    // 解析可选的命令行参数：P2P 端口号
+    quint16 p2pPort = 0;  // 0 表示由系统分配随机端口
     if (argc > 1) {
         int p = std::atoi(argv[1]);
         if (p > 0 && p <= 65535) {
@@ -52,17 +53,17 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // --- P2P Server (runs on main thread via Qt event loop) ---
+    // --- 创建 P2P 接收服务器（运行在主线程，通过 Qt 事件循环驱动） ---
     P2PServer p2pServer;
-    logStartup(QStringLiteral("Creating P2PServer, port=%1").arg(p2pPort));
+    logStartup(QStringLiteral("创建 P2PServer，端口=%1").arg(p2pPort));
 
-    // --- Main Window ---
-    logStartup(QStringLiteral("Creating MainWindow"));
+    // --- 创建主窗口 ---
+    logStartup(QStringLiteral("创建 MainWindow"));
     MainWindow window;
     window.setP2PServer(&p2pServer);
 
-    // Connect P2PServer signals to MainWindow slots BEFORE starting listening,
-    // so that onP2PListeningStarted can update the spin box with the actual port.
+    // 在启动监听之前连接 P2PServer 信号到 MainWindow 槽函数，
+    // 这样 onP2PListeningStarted 能在端口分配后立即更新端口显示
     QObject::connect(&p2pServer, &P2PServer::listeningStarted,
                      &window, &MainWindow::onP2PListeningStarted);
     QObject::connect(&p2pServer, &P2PServer::fileReceived,
@@ -72,25 +73,26 @@ int main(int argc, char* argv[]) {
     QObject::connect(&p2pServer, &P2PServer::errorOccurred,
                      &window, &MainWindow::onP2PError);
 
+    // 启动 P2P 监听
     if (!p2pServer.startListening(p2pPort)) {
-        QString err = QStringLiteral("P2P listen failed on port %1")
-                      .arg(p2pPort == 0 ? QStringLiteral("(random)") : QString::number(p2pPort));
-        logStartup(QStringLiteral("FATAL: ") + err);
+        QString err = QStringLiteral("P2P 在端口 %1 监听失败")
+                      .arg(p2pPort == 0 ? QStringLiteral("(随机)") : QString::number(p2pPort));
+        logStartup(QStringLiteral("致命错误: ") + err);
         QMessageBox::critical(nullptr, QStringLiteral("启动失败"), err);
         return 1;
     }
-    logStartup(QStringLiteral("P2PServer listening on port %1").arg(p2pServer.serverPort()));
+    logStartup(QStringLiteral("P2PServer 已监听端口 %1").arg(p2pServer.serverPort()));
 
-    logStartup(QStringLiteral("Showing MainWindow"));
+    logStartup(QStringLiteral("显示 MainWindow"));
     window.show();
-    logStartup(QStringLiteral("Entering event loop"));
+    logStartup(QStringLiteral("进入事件循环"));
 
     int ret = app.exec();
 
-    // Cleanup
-    logStartup(QStringLiteral("Exiting, stopping P2PServer"));
+    // 清理资源
+    logStartup(QStringLiteral("退出，停止 P2PServer"));
     p2pServer.stopListening();
-    logStartup(QStringLiteral("=== P2P Client exit ==="));
+    logStartup(QStringLiteral("=== P2P 客户端退出 ==="));
 
     return ret;
 }

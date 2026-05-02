@@ -3,11 +3,14 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QNetworkProxy>
+#include <QDir>
+#include <QFileInfo>
 
 RegistryClient::RegistryClient(QObject* parent)
     : QObject(parent)
     , _socket(new QTcpSocket(this))
 {
+    // 连接 TCP 套接字信号到本类槽函数
     connect(_socket, &QTcpSocket::connected, this, &RegistryClient::onConnected);
     connect(_socket, &QTcpSocket::disconnected, this, &RegistryClient::onDisconnected);
     connect(_socket, &QTcpSocket::readyRead, this, &RegistryClient::onReadyRead);
@@ -18,34 +21,37 @@ RegistryClient::~RegistryClient() {
     disconnectFromServer();
 }
 
+// 连接到注册服务器
 void RegistryClient::connectToServer(const QString& host, quint16 port) {
     if (_state != State::Disconnected) {
         return;
     }
     _state = State::Connecting;
     _recvBuf.clear();
-    // Bypass system proxy — raw TCP doesn't work through HTTP proxy
+    // 绕过系统代理——原始 TCP 连接无法通过 HTTP 代理
     _socket->setProxy(QNetworkProxy::NoProxy);
     _socket->connectToHost(host, port);
 }
 
+// 断开与注册服务器的连接
 void RegistryClient::disconnectFromServer() {
     _pendingOp = Op::None;
     _state = State::Disconnected;
     _socket->disconnectFromHost();
 }
 
+// 向注册服务器注册本节点
 void RegistryClient::registerPeer(const QString& name, quint16 p2pPort) {
     if (_state != State::Connected) {
-        emit errorOccurred(QStringLiteral("Not connected to Registry Server"));
+        emit errorOccurred(QStringLiteral("未连接到注册服务器"));
         return;
     }
     _peerName = name;
     _pendingOp = Op::Register;
 
-    // Send our local IP so other peers can connect to us directly.
-    // The server-determined IP (from TCP connection) may be a NAT gateway IP
-    // that other peers cannot reach, so we prefer our own local address.
+    // 发送本机 IP 地址，以便其他节点能直接连接到我们。
+    // 服务器从 TCP 连接中获取的 IP 可能是 NAT 网关地址,
+    // 其他节点无法访问，因此优先使用本机主动上报的地址。
     nlohmann::json j;
     j["type"] = "register";
     j["port"] = p2pPort;
@@ -57,9 +63,10 @@ void RegistryClient::registerPeer(const QString& name, quint16 p2pPort) {
     sendMessage(j.dump());
 }
 
+// 查询当前在线的所有对端节点
 void RegistryClient::queryPeers() {
     if (_state != State::Connected) {
-        emit errorOccurred(QStringLiteral("Not connected to Registry Server"));
+        emit errorOccurred(QStringLiteral("未连接到注册服务器"));
         return;
     }
     _pendingOp = Op::Query;
@@ -70,9 +77,10 @@ void RegistryClient::queryPeers() {
     sendMessage(j.dump());
 }
 
+// 从注册服务器注销本节点
 void RegistryClient::unregisterPeer() {
     if (_state != State::Connected) {
-        // Silently ignore — already disconnected
+        // 已断开连接，静默忽略
         return;
     }
     _pendingOp = Op::Unregister;
@@ -87,23 +95,28 @@ void RegistryClient::unregisterPeer() {
     sendMessage(j.dump());
 }
 
+// 发送 JSON 消息（自动封装为帧后写入套接字）
 void RegistryClient::sendMessage(const std::string& jsonStr) {
     std::string frame = encode_frame(jsonStr);
     _socket->write(frame.data(), static_cast<qint64>(frame.size()));
 }
 
-// --- Slots ---
+// ============================================================
+//  信号槽回调函数
+// ============================================================
 
+// TCP 连接建立成功
 void RegistryClient::onConnected() {
     _state = State::Connected;
 
-    // getsockname() equivalent: get the local address used for this connection
+    // 获取本机在本次连接中使用的地址（类似 getsockname）
     _localIp = _socket->localAddress().toString();
     _localPort = _socket->localPort();
 
     emit connected();
 }
 
+// TCP 连接断开
 void RegistryClient::onDisconnected() {
     _state = State::Disconnected;
     _pendingOp = Op::None;
@@ -111,12 +124,14 @@ void RegistryClient::onDisconnected() {
     emit disconnected();
 }
 
+// 收到数据，循环解码帧并处理
 void RegistryClient::onReadyRead() {
     QByteArray data = _socket->readAll();
     _recvBuf.append(QString::fromUtf8(data));
 
     std::string buf = _recvBuf.toStdString();
 
+    // 循环解码：只要缓冲区中有完整帧就持续处理
     while (true) {
         auto payload = try_decode_frame(buf);
         if (!payload) break;
@@ -125,6 +140,7 @@ void RegistryClient::onReadyRead() {
     }
 }
 
+// 套接字错误处理
 void RegistryClient::onSocketError(QAbstractSocket::SocketError /*error*/) {
     QString msg = _socket->errorString();
     _state = State::Disconnected;
@@ -132,30 +148,85 @@ void RegistryClient::onSocketError(QAbstractSocket::SocketError /*error*/) {
     emit errorOccurred(msg);
 }
 
+// 解析并处理收到的 JSON 消息
 void RegistryClient::processMessage(const std::string& jsonStr) {
     try {
         auto j = nlohmann::json::parse(jsonStr);
         std::string type = j.at("type").get<std::string>();
 
         if (type == "register_ack") {
+            // 注册确认：返回当前在线节点列表
             auto resp = j.get<RegResponse>();
             if (_pendingOp == Op::Register) {
                 _pendingOp = Op::None;
                 emit registerAck(resp.peers);
             }
         } else if (type == "query_ack") {
+            // 查询确认：返回当前在线节点列表
             auto resp = j.get<RegResponse>();
             if (_pendingOp == Op::Query) {
                 _pendingOp = Op::None;
                 emit queryAck(resp.peers);
             }
         } else if (type == "unregister_ack") {
+            // 注销确认
             if (_pendingOp == Op::Unregister) {
                 _pendingOp = Op::None;
                 emit unregisterAck();
+            }
+        } else if (type == "browse_response") {
+            // 收到浏览中继响应
+            std::string brPath = j.value("path", "");
+            std::string brError = j.value("error", "");
+            std::vector<DirEntry> entries;
+            if (j.contains("entries")) {
+                entries = j["entries"].get<std::vector<DirEntry>>();
+            }
+            if (!brError.empty()) {
+                emit browseError(QString::fromStdString(brError));
+            } else {
+                emit browseResult(QString::fromStdString(brPath), entries);
             }
         }
     } catch (const std::exception& e) {
         emit errorOccurred(QString::fromStdString(e.what()));
     }
+}
+
+// 通过注册服务器中转，向对端发送浏览请求
+void RegistryClient::sendBrowseRequest(const QString& targetIp, quint16 targetPort, const QString& path) {
+    if (_state != State::Connected) {
+        emit browseError(QStringLiteral("未连接到注册服务器"));
+        return;
+    }
+
+    nlohmann::json j;
+    j["type"] = "browse_request";
+    j["target_ip"] = targetIp.toStdString();
+    j["target_port"] = targetPort;
+    if (!path.isEmpty()) {
+        j["path"] = path.toStdString();
+    }
+
+    sendMessage(j.dump());
+}
+
+// 通过注册服务器中转，向对端发送浏览响应
+void RegistryClient::sendBrowseResponse(int reqId, const std::string& path,
+                                        const std::vector<DirEntry>& entries, const std::string& error) {
+    if (_state != State::Connected) {
+        return;
+    }
+
+    nlohmann::json j;
+    j["type"] = "browse_response";
+    j["req_id"] = reqId;
+    j["path"] = path;
+    j["error"] = error;
+    j["entries"] = nlohmann::json::array();
+    for (const auto& e : entries) {
+        j["entries"].push_back({{"name", e.name}, {"isDir", e.isDir}, {"size", e.size}});
+    }
+
+    sendMessage(j.dump());
 }

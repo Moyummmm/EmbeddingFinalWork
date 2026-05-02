@@ -39,4 +39,15 @@ private:
     std::atomic<bool> _running{false};
     PeerRegistry _registry;
     std::unordered_map<int, Connection> _connections;
+
+    // Peer → connection fd mapping (for browse relay)
+    std::unordered_map<std::string, int> _peer_fds;  // "ip:port" → fd
+    std::unordered_map<int, std::string> _fd_to_peer; // fd → "ip:port"
+    // Browse relay: req_id → requester fd
+    std::unordered_map<int, int> _browse_map;
+    int _next_req_id = 1;
+
+    static std::string peer_key(const std::string& ip, int port) {
+        return ip + ":" + std::to_string(port);
+    }
 };

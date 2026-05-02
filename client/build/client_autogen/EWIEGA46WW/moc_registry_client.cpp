@@ -49,6 +49,11 @@ static constexpr auto qt_meta_stringdata_CLASSRegistryClientENDCLASS = QtMocHelp
     "unregisterAck",
     "errorOccurred",
     "message",
+    "browseResult",
+    "path",
+    "std::vector<DirEntry>",
+    "entries",
+    "browseError",
     "onConnected",
     "onDisconnected",
     "onReadyRead",
@@ -58,7 +63,7 @@ static constexpr auto qt_meta_stringdata_CLASSRegistryClientENDCLASS = QtMocHelp
 );
 #else  // !QT_MOC_HAS_STRING_DATA
 struct qt_meta_stringdata_CLASSRegistryClientENDCLASS_t {
-    uint offsetsAndSizes[34];
+    uint offsetsAndSizes[44];
     char stringdata0[15];
     char stringdata1[10];
     char stringdata2[1];
@@ -70,12 +75,17 @@ struct qt_meta_stringdata_CLASSRegistryClientENDCLASS_t {
     char stringdata8[14];
     char stringdata9[14];
     char stringdata10[8];
-    char stringdata11[12];
-    char stringdata12[15];
-    char stringdata13[12];
-    char stringdata14[14];
-    char stringdata15[29];
-    char stringdata16[6];
+    char stringdata11[13];
+    char stringdata12[5];
+    char stringdata13[22];
+    char stringdata14[8];
+    char stringdata15[12];
+    char stringdata16[12];
+    char stringdata17[15];
+    char stringdata18[12];
+    char stringdata19[14];
+    char stringdata20[29];
+    char stringdata21[6];
 };
 #define QT_MOC_LITERAL(ofs, len) \
     uint(sizeof(qt_meta_stringdata_CLASSRegistryClientENDCLASS_t::offsetsAndSizes) + ofs), len 
@@ -92,12 +102,17 @@ Q_CONSTINIT static const qt_meta_stringdata_CLASSRegistryClientENDCLASS_t qt_met
         QT_MOC_LITERAL(88, 13),  // "unregisterAck"
         QT_MOC_LITERAL(102, 13),  // "errorOccurred"
         QT_MOC_LITERAL(116, 7),  // "message"
-        QT_MOC_LITERAL(124, 11),  // "onConnected"
-        QT_MOC_LITERAL(136, 14),  // "onDisconnected"
-        QT_MOC_LITERAL(151, 11),  // "onReadyRead"
-        QT_MOC_LITERAL(163, 13),  // "onSocketError"
-        QT_MOC_LITERAL(177, 28),  // "QAbstractSocket::SocketError"
-        QT_MOC_LITERAL(206, 5)   // "error"
+        QT_MOC_LITERAL(124, 12),  // "browseResult"
+        QT_MOC_LITERAL(137, 4),  // "path"
+        QT_MOC_LITERAL(142, 21),  // "std::vector<DirEntry>"
+        QT_MOC_LITERAL(164, 7),  // "entries"
+        QT_MOC_LITERAL(172, 11),  // "browseError"
+        QT_MOC_LITERAL(184, 11),  // "onConnected"
+        QT_MOC_LITERAL(196, 14),  // "onDisconnected"
+        QT_MOC_LITERAL(211, 11),  // "onReadyRead"
+        QT_MOC_LITERAL(223, 13),  // "onSocketError"
+        QT_MOC_LITERAL(237, 28),  // "QAbstractSocket::SocketError"
+        QT_MOC_LITERAL(266, 5)   // "error"
     },
     "RegistryClient",
     "connected",
@@ -110,6 +125,11 @@ Q_CONSTINIT static const qt_meta_stringdata_CLASSRegistryClientENDCLASS_t qt_met
     "unregisterAck",
     "errorOccurred",
     "message",
+    "browseResult",
+    "path",
+    "std::vector<DirEntry>",
+    "entries",
+    "browseError",
     "onConnected",
     "onDisconnected",
     "onReadyRead",
@@ -127,26 +147,28 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSRegistryClientENDCLASS[] = {
       12,       // revision
        0,       // classname
        0,    0, // classinfo
-      10,   14, // methods
+      12,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
        0,       // flags
-       6,       // signalCount
+       8,       // signalCount
 
  // signals: name, argc, parameters, tag, flags, initial metatype offsets
-       1,    0,   74,    2, 0x06,    1 /* Public */,
-       3,    0,   75,    2, 0x06,    2 /* Public */,
-       4,    1,   76,    2, 0x06,    3 /* Public */,
-       7,    1,   79,    2, 0x06,    5 /* Public */,
-       8,    0,   82,    2, 0x06,    7 /* Public */,
-       9,    1,   83,    2, 0x06,    8 /* Public */,
+       1,    0,   86,    2, 0x06,    1 /* Public */,
+       3,    0,   87,    2, 0x06,    2 /* Public */,
+       4,    1,   88,    2, 0x06,    3 /* Public */,
+       7,    1,   91,    2, 0x06,    5 /* Public */,
+       8,    0,   94,    2, 0x06,    7 /* Public */,
+       9,    1,   95,    2, 0x06,    8 /* Public */,
+      11,    2,   98,    2, 0x06,   10 /* Public */,
+      15,    1,  103,    2, 0x06,   13 /* Public */,
 
  // slots: name, argc, parameters, tag, flags, initial metatype offsets
-      11,    0,   86,    2, 0x08,   10 /* Private */,
-      12,    0,   87,    2, 0x08,   11 /* Private */,
-      13,    0,   88,    2, 0x08,   12 /* Private */,
-      14,    1,   89,    2, 0x08,   13 /* Private */,
+      16,    0,  106,    2, 0x08,   15 /* Private */,
+      17,    0,  107,    2, 0x08,   16 /* Private */,
+      18,    0,  108,    2, 0x08,   17 /* Private */,
+      19,    1,  109,    2, 0x08,   18 /* Private */,
 
  // signals: parameters
     QMetaType::Void,
@@ -155,12 +177,14 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSRegistryClientENDCLASS[] = {
     QMetaType::Void, 0x80000000 | 5,    6,
     QMetaType::Void,
     QMetaType::Void, QMetaType::QString,   10,
+    QMetaType::Void, QMetaType::QString, 0x80000000 | 13,   12,   14,
+    QMetaType::Void, QMetaType::QString,   10,
 
  // slots: parameters
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
-    QMetaType::Void, 0x80000000 | 15,   16,
+    QMetaType::Void, 0x80000000 | 20,   21,
 
        0        // eod
 };
@@ -189,6 +213,13 @@ Q_CONSTINIT const QMetaObject RegistryClient::staticMetaObject = { {
         // method 'errorOccurred'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         QtPrivate::TypeAndForceComplete<const QString &, std::false_type>,
+        // method 'browseResult'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<const QString &, std::false_type>,
+        QtPrivate::TypeAndForceComplete<const std::vector<DirEntry> &, std::false_type>,
+        // method 'browseError'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<const QString &, std::false_type>,
         // method 'onConnected'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'onDisconnected'
@@ -214,16 +245,18 @@ void RegistryClient::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
         case 3: _t->queryAck((*reinterpret_cast< std::add_pointer_t<std::vector<PeerInfo>>>(_a[1]))); break;
         case 4: _t->unregisterAck(); break;
         case 5: _t->errorOccurred((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 6: _t->onConnected(); break;
-        case 7: _t->onDisconnected(); break;
-        case 8: _t->onReadyRead(); break;
-        case 9: _t->onSocketError((*reinterpret_cast< std::add_pointer_t<QAbstractSocket::SocketError>>(_a[1]))); break;
+        case 6: _t->browseResult((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<std::vector<DirEntry>>>(_a[2]))); break;
+        case 7: _t->browseError((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 8: _t->onConnected(); break;
+        case 9: _t->onDisconnected(); break;
+        case 10: _t->onReadyRead(); break;
+        case 11: _t->onSocketError((*reinterpret_cast< std::add_pointer_t<QAbstractSocket::SocketError>>(_a[1]))); break;
         default: ;
         }
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
         switch (_id) {
         default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-        case 9:
+        case 11:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
@@ -275,6 +308,20 @@ void RegistryClient::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
                 return;
             }
         }
+        {
+            using _t = void (RegistryClient::*)(const QString & , const std::vector<DirEntry> & );
+            if (_t _q_method = &RegistryClient::browseResult; *reinterpret_cast<_t *>(_a[1]) == _q_method) {
+                *result = 6;
+                return;
+            }
+        }
+        {
+            using _t = void (RegistryClient::*)(const QString & );
+            if (_t _q_method = &RegistryClient::browseError; *reinterpret_cast<_t *>(_a[1]) == _q_method) {
+                *result = 7;
+                return;
+            }
+        }
     }
 }
 
@@ -297,13 +344,13 @@ int RegistryClient::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 10)
+        if (_id < 12)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 10;
+        _id -= 12;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 10)
+        if (_id < 12)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 10;
+        _id -= 12;
     }
     return _id;
 }
@@ -345,5 +392,19 @@ void RegistryClient::errorOccurred(const QString & _t1)
 {
     void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
     QMetaObject::activate(this, &staticMetaObject, 5, _a);
+}
+
+// SIGNAL 6
+void RegistryClient::browseResult(const QString & _t1, const std::vector<DirEntry> & _t2)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))) };
+    QMetaObject::activate(this, &staticMetaObject, 6, _a);
+}
+
+// SIGNAL 7
+void RegistryClient::browseError(const QString & _t1)
+{
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))) };
+    QMetaObject::activate(this, &staticMetaObject, 7, _a);
 }
 QT_WARNING_POP

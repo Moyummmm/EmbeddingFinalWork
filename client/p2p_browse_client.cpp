@@ -16,10 +16,11 @@ P2PBrowseClient::~P2PBrowseClient() {
     }
 }
 
+// 发起浏览请求：连接到对端并发送目录列表请求
 void P2PBrowseClient::browse(const QString& host, quint16 port, const QString& path) {
     _requestPath = path;
     _recvBuf.clear();
-    // Disconnect any previous connection
+    // 如果之前有未完成的连接，先中断
     if (_socket->state() != QAbstractSocket::UnconnectedState) {
         _socket->abort();
     }
@@ -27,6 +28,7 @@ void P2PBrowseClient::browse(const QString& host, quint16 port, const QString& p
     _socket->connectToHost(host, port);
 }
 
+// 连接建立后，立即发送目录列表请求
 void P2PBrowseClient::onConnected() {
     ListRequest req;
     req.path = _requestPath.toStdString();
@@ -34,6 +36,7 @@ void P2PBrowseClient::onConnected() {
     _socket->write(frame.data(), static_cast<qint64>(frame.size()));
 }
 
+// 收到对端响应，解析目录列表后断开连接
 void P2PBrowseClient::onReadyRead() {
     QByteArray data = _socket->readAll();
     _recvBuf.append(data.toStdString());
@@ -57,6 +60,7 @@ void P2PBrowseClient::onReadyRead() {
     _socket->disconnectFromHost();
 }
 
+// 套接字错误处理
 void P2PBrowseClient::onSocketError(QAbstractSocket::SocketError /*error*/) {
-    emit errorOccurred(QStringLiteral("P2P browse: ") + _socket->errorString());
+    emit errorOccurred(QStringLiteral("P2P 浏览失败: ") + _socket->errorString());
 }

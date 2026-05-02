@@ -81,6 +81,7 @@ private:
 private:
     void updateWindowTitle();
     void updatePeerCombo();
+    void updateTransferInfo();
     QStringList getSelectedLocalFiles();
     QStringList getSelectedRemoteFileNames();
     void addToTransferQueue(const QStringList& files, const QString& direction);
@@ -112,6 +113,7 @@ private:
     // === 中间箭头 ===
     QPushButton* _sendRightBtn = nullptr;   // →
     QPushButton* _sendLeftBtn = nullptr;    // ←
+    QLabel* _transferInfoLabel = nullptr;   // 传输信息提示
 
     // === 底部传输队列 ===
     QTableWidget* _transferQueue = nullptr;

@@ -129,6 +129,8 @@ MainWindow::MainWindow(QWidget* parent)
         _localTree->hideColumn(i);
     }
     connect(_localTree, &QTreeView::doubleClicked, this, &MainWindow::onLocalItemDoubleClicked);
+    connect(_localTree->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &MainWindow::updateTransferInfo);
     leftLayout->addWidget(_localTree);
 
     splitter->addWidget(leftPanel);
@@ -151,6 +153,14 @@ MainWindow::MainWindow(QWidget* parent)
     _sendLeftBtn->setToolTip(QStringLiteral("从远端拉取选中文件到本机"));
     _sendLeftBtn->setEnabled(false);
     midLayout->addWidget(_sendLeftBtn);
+    midLayout->addSpacing(10);
+
+    _transferInfoLabel = new QLabel(QString());
+    _transferInfoLabel->setWordWrap(true);
+    _transferInfoLabel->setMaximumWidth(120);
+    _transferInfoLabel->setStyleSheet(QStringLiteral("color: #555; font-size: 11px;"));
+    _transferInfoLabel->setAlignment(Qt::AlignCenter);
+    midLayout->addWidget(_transferInfoLabel);
 
     midLayout->addStretch();
     splitter->addWidget(midPanel);
@@ -182,6 +192,8 @@ MainWindow::MainWindow(QWidget* parent)
     _remoteTree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     _remoteTree->setColumnWidth(0, 250);
     connect(_remoteTree, &QTreeView::doubleClicked, this, &MainWindow::onRemoteItemDoubleClicked);
+    connect(_remoteTree->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &MainWindow::updateTransferInfo);
     rightLayout->addWidget(_remoteTree);
 
     splitter->addWidget(rightPanel);
@@ -795,6 +807,34 @@ QString MainWindow::hostnameShort() {
 // ============================================================
 //  窗口关闭事件
 // ============================================================
+
+void MainWindow::updateTransferInfo() {
+    QStringList localFiles = getSelectedLocalFiles();
+    QStringList remoteFiles = getSelectedRemoteFileNames();
+    int localCount = localFiles.size();
+    int remoteCount = remoteFiles.size();
+
+    QStringList info;
+
+    if (localCount > 0) {
+        info.append(QStringLiteral("→ 发送 %1 项").arg(localCount));
+        if (!_remotePath.isEmpty()) {
+            info.append(QStringLiteral("到: %1").arg(_remotePath));
+        }
+    }
+
+    if (remoteCount > 0) {
+        info.append(QStringLiteral("← 拉取 %1 项").arg(remoteCount));
+        QString localDir = _localModel->filePath(_localTree->rootIndex());
+        info.append(QStringLiteral("到: %1").arg(localDir));
+    }
+
+    if (info.isEmpty()) {
+        _transferInfoLabel->setText(QStringLiteral("选择文件后\n点击箭头传输"));
+    } else {
+        _transferInfoLabel->setText(info.join(QStringLiteral("\n")));
+    }
+}
 
 void MainWindow::closeEvent(QCloseEvent* event) {
     if (_registered) {

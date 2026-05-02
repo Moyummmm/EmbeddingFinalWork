@@ -1,0 +1,7 @@
+services:
+  server:
+    build: .
+    container_name: peer-registry
+    ports:
+      - "${PORT:-8888}:8888"
+    restart: unless-stopped

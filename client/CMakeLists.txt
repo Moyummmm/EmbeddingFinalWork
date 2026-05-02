@@ -24,6 +24,7 @@ add_executable(client
     registry_client.cpp
     p2p_server.cpp
     p2p_transfer.cpp
+    p2p_browse_client.cpp
     protocol.cpp
 )
 

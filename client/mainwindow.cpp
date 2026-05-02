@@ -27,6 +27,8 @@ MainWindow::MainWindow(QWidget* parent)
     // --- Core modules ---
     _registry = new RegistryClient(this);
     _transfer = new P2PTransfer(this);
+    _browseClient = new P2PBrowseClient(this);
+    _remoteModel = new QStandardItemModel(this);
 
     // Registry signals
     connect(_registry, &RegistryClient::connected, this, &MainWindow::onRegConnected);
@@ -41,6 +43,10 @@ MainWindow::MainWindow(QWidget* parent)
     connect(_transfer, &P2PTransfer::fileCompleted, this, &MainWindow::onTransferFileCompleted);
     connect(_transfer, &P2PTransfer::transferFinished, this, &MainWindow::onTransferFinished);
     connect(_transfer, &P2PTransfer::errorOccurred, this, &MainWindow::onTransferError);
+
+    // Browse signals
+    connect(_browseClient, &P2PBrowseClient::listingReceived, this, &MainWindow::onRemoteListingReceived);
+    connect(_browseClient, &P2PBrowseClient::errorOccurred, this, &MainWindow::onRemoteBrowseError);
 
     // --- Central widget ---
     QWidget* central = new QWidget(this);
@@ -114,15 +120,26 @@ MainWindow::MainWindow(QWidget* parent)
     midLayout->addWidget(_sendBtn);
     splitter->addWidget(midPanel);
 
-    // Right: file system tree
+    // Right: file system tree (local mode) or remote browser
     QWidget* rightPanel = new QWidget();
     QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->addWidget(new QLabel(QStringLiteral("本机文件系统")));
+
+    // Header: shows current mode
+    QHBoxLayout* rightHeaderLayout = new QHBoxLayout();
+    _remotePathLabel = new QLabel(QStringLiteral("本机文件系统"));
+    rightHeaderLayout->addWidget(_remotePathLabel);
+    _localBtn = new QPushButton(QStringLiteral("返回本地"));
+    _localBtn->setVisible(false);
+    rightHeaderLayout->addWidget(_localBtn);
+    rightHeaderLayout->addStretch();
+    rightLayout->addLayout(rightHeaderLayout);
 
     _fileModel = new QFileSystemModel(this);
     _fileModel->setRootPath(QDir::rootPath());
     _fileModel->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
+
+    _remoteModel->setHorizontalHeaderLabels({QStringLiteral("名称"), QStringLiteral("大小")});
 
     _fileTree = new QTreeView();
     _fileTree->setModel(_fileModel);
@@ -179,6 +196,9 @@ MainWindow::MainWindow(QWidget* parent)
     connect(_selectFileBtn, &QPushButton::clicked, this, &MainWindow::onSelectFilesClicked);
     connect(_selectFolderBtn, &QPushButton::clicked, this, &MainWindow::onSelectFolderClicked);
     connect(_peerList, &QListWidget::itemSelectionChanged, this, &MainWindow::updateButtonStates);
+    connect(_peerList, &QListWidget::itemDoubleClicked, this, &MainWindow::onPeerDoubleClicked);
+    connect(_localBtn, &QPushButton::clicked, this, &MainWindow::onLocalBtnClicked);
+    connect(_fileTree, &QTreeView::doubleClicked, this, &MainWindow::onRemoteItemDoubleClicked);
 
     updateButtonStates();
 }
@@ -396,6 +416,96 @@ void MainWindow::onTransferFinished(int /*success*/, int /*failed*/) {
 
 void MainWindow::onTransferError(const QString& message) {
     QMessageBox::warning(this, QStringLiteral("传输错误"), message);
+}
+
+// ============================================================
+//  Slots — Remote Browsing
+// ============================================================
+
+void MainWindow::onPeerDoubleClicked(QListWidgetItem* item) {
+    if (!item || item->data(Qt::UserRole).isNull()) return;
+    if (!_registered) return;
+
+    QString ip = item->data(Qt::UserRole).toString();
+    quint16 port = static_cast<quint16>(item->data(Qt::UserRole + 1).toInt());
+    QString name = item->data(Qt::UserRole + 2).toString();
+
+    // Update selected peer
+    _selectedPeer.ip = ip.toStdString();
+    _selectedPeer.port = port;
+    _selectedPeer.name = name.toStdString();
+
+    // Switch to remote mode
+    _remoteMode = true;
+    _remotePath.clear();
+    _remotePathLabel->setText(QStringLiteral("正在连接 %1 ...").arg(name));
+    _localBtn->setVisible(true);
+    _selectFileBtn->setVisible(false);
+    _selectFolderBtn->setVisible(false);
+
+    // Clear tree and switch to remote model
+    _fileTree->setModel(_remoteModel);
+    _remoteModel->removeRows(0, _remoteModel->rowCount());
+
+    // Request home directory listing
+    _browseClient->browse(ip, port, QString());
+}
+
+void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<DirEntry>& entries) {
+    _remotePath = path;
+    _remotePathLabel->setText(QStringLiteral("远端: %1").arg(path));
+    _remoteModel->removeRows(0, _remoteModel->rowCount());
+
+    for (const auto& e : entries) {
+        QList<QStandardItem*> row;
+        auto* nameItem = new QStandardItem(QString::fromStdString(e.name));
+        nameItem->setData(e.isDir ? QStringLiteral("📁") : formatFileSize(e.size), Qt::DisplayRole);
+        // Store isDir flag in UserRole for double-click handling
+        nameItem->setData(e.isDir, Qt::UserRole);
+        row.append(nameItem);
+        auto* sizeItem = new QStandardItem(
+            e.isDir ? QStringLiteral("") : formatFileSize(e.size));
+        sizeItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        row.append(sizeItem);
+        _remoteModel->appendRow(row);
+    }
+}
+
+void MainWindow::onRemoteBrowseError(const QString& message) {
+    _remotePathLabel->setText(QStringLiteral("远端浏览错误: %1").arg(message));
+}
+
+void MainWindow::onRemoteItemDoubleClicked(const QModelIndex& index) {
+    if (!_remoteMode) return;
+
+    // Get the name from column 0
+    QModelIndex nameIndex = index.sibling(index.row(), 0);
+    bool isDir = nameIndex.data(Qt::UserRole).toBool();
+    if (!isDir) return;
+
+    QString dirName = nameIndex.data(Qt::DisplayRole).toString();
+    QString newPath = _remotePath + QStringLiteral("/") + dirName;
+
+    // Store the peer info before clearing
+    QString peerIp = QString::fromStdString(_selectedPeer.ip);
+    quint16 peerPort = static_cast<quint16>(_selectedPeer.port);
+
+    _remotePathLabel->setText(QStringLiteral("正在加载..."));
+    _remoteModel->removeRows(0, _remoteModel->rowCount());
+    _browseClient->browse(peerIp, peerPort, newPath);
+}
+
+void MainWindow::onLocalBtnClicked() {
+    _remoteMode = false;
+    _remotePathLabel->setText(QStringLiteral("本机文件系统"));
+    _localBtn->setVisible(false);
+    _selectFileBtn->setVisible(true);
+    _selectFolderBtn->setVisible(true);
+    _fileTree->setModel(_fileModel);
+    _fileTree->setRootIndex(_fileModel->index(QDir::homePath()));
+    for (int i = 1; i < _fileModel->columnCount(); ++i) {
+        _fileTree->hideColumn(i);
+    }
 }
 
 // ============================================================

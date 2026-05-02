@@ -234,6 +234,37 @@ void P2PServer::processMessage(QTcpSocket* socket, const std::string& jsonStr) {
             socket->flush();
             socket->disconnectFromHost();
 
+        } else if (type == "list_request") {
+            auto req = j.get<ListRequest>();
+            ListResponse resp;
+            resp.path = req.path;
+
+            // Resolve path: empty or "/" → home directory
+            QString browsePath = req.path.empty()
+                ? QDir::homePath()
+                : QString::fromStdString(req.path);
+
+            QDir dir(browsePath);
+            if (!dir.exists()) {
+                resp.error = "Directory not found: " + req.path;
+            } else {
+                QFileInfoList entries = dir.entryInfoList(
+                    QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden,
+                    QDir::DirsFirst | QDir::Name);
+                for (const QFileInfo& fi : entries) {
+                    DirEntry de;
+                    de.name = fi.fileName().toStdString();
+                    de.isDir = fi.isDir();
+                    de.size = fi.isDir() ? 0 : static_cast<uint64_t>(fi.size());
+                    resp.entries.push_back(std::move(de));
+                }
+            }
+
+            std::string frame = encode_frame(nlohmann::json(resp).dump());
+            socket->write(frame.data(), static_cast<qint64>(frame.size()));
+            socket->flush();
+            socket->disconnectFromHost();
+
         }
     } catch (const std::exception& e) {
         emit errorOccurred(QString::fromStdString(e.what()));

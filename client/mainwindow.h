@@ -7,6 +7,7 @@
 #include <QListWidget>
 #include <QTreeView>
 #include <QFileSystemModel>
+#include <QStandardItemModel>
 #include <QTableWidget>
 #include <QLabel>
 #include <QProgressBar>
@@ -15,6 +16,7 @@
 #include "registry_client.h"
 #include "p2p_server.h"
 #include "p2p_transfer.h"
+#include "p2p_browse_client.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -58,6 +60,13 @@ private:
     void onTransferFinished(int success, int failed);
     void onTransferError(const QString& message);
 
+    // Remote browsing
+    void onPeerDoubleClicked(QListWidgetItem* item);
+    void onRemoteListingReceived(const QString& path, const std::vector<DirEntry>& entries);
+    void onRemoteBrowseError(const QString& message);
+    void onRemoteItemDoubleClicked(const QModelIndex& index);
+    void onLocalBtnClicked();
+
 private:
     void updateWindowTitle();
     void updatePeerList(const std::vector<PeerInfo>& peers);
@@ -95,12 +104,20 @@ private:
     RegistryClient* _registry = nullptr;
     P2PServer* _p2pServer = nullptr;
     P2PTransfer* _transfer = nullptr;
+    P2PBrowseClient* _browseClient = nullptr;
 
     // --- State ---
     bool _registered = false;
     PeerInfo _selfInfo;
     PeerInfo _selectedPeer;
     QStringList _selectedFiles;  // absolute paths
+
+    // --- Remote browsing state ---
+    bool _remoteMode = false;
+    QString _remotePath;         // current remote directory
+    QStandardItemModel* _remoteModel = nullptr;
+    QLabel* _remotePathLabel = nullptr;
+    QPushButton* _localBtn = nullptr;
 
     // --- Transfer queue tracking ---
     struct QueueEntry {

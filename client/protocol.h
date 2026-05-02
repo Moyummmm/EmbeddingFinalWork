@@ -88,6 +88,29 @@ struct FileAck {
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FileAck, type, path, offset)
 
+// --- Remote directory listing ---
+
+struct DirEntry {
+    std::string name;
+    bool isDir = false;
+    uint64_t size = 0;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(DirEntry, name, isDir, size)
+
+struct ListRequest {
+    std::string type = "list_request";
+    std::string path;   // directory to list
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(ListRequest, type, path)
+
+struct ListResponse {
+    std::string type = "list_response";
+    std::string path;   // echo back the requested path
+    std::string error;  // empty on success
+    std::vector<DirEntry> entries;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(ListResponse, type, path, error, entries)
+
 struct TransferDone {
     std::string type = "transfer_done";
     int success = 0;

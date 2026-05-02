@@ -45,6 +45,7 @@ D:/codes/test/temp/client/build/client_autogen/EWIEGA46WW/moc_mainwindow.cpp: D:
   D:/codes/test/temp/client/build/_deps/json-src/include/nlohmann/ordered_map.hpp \
   D:/codes/test/temp/client/build/_deps/json-src/include/nlohmann/thirdparty/hedley/hedley.hpp \
   D:/codes/test/temp/client/build/_deps/json-src/include/nlohmann/thirdparty/hedley/hedley_undef.hpp \
+  D:/codes/test/temp/client/p2p_browse_client.h \
   D:/codes/test/temp/client/p2p_server.h \
   D:/codes/test/temp/client/p2p_transfer.h \
   D:/codes/test/temp/client/protocol.h \
@@ -442,6 +443,7 @@ D:/codes/test/temp/client/build/client_autogen/EWIEGA46WW/moc_mainwindow.cpp: D:
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtCore/qversiontagging.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtCore/qxptype_traits.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/QFileSystemModel \
+  D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/QStandardItemModel \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qaction.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qbitmap.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qbrush.h \
@@ -464,6 +466,7 @@ D:/codes/test/temp/client/build/client_autogen/EWIEGA46WW/moc_mainwindow.cpp: D:
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qregion.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qrgb.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qrgba64.h \
+  D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qstandarditemmodel.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qtextcursor.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qtextdocument.h \
   D:/tools/qt/Qt/6.6.0/mingw_64/include/QtGui/qtextformat.h \

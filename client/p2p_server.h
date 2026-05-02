@@ -29,6 +29,9 @@ public:
     // 获取实际监听的端口号
     quint16 serverPort() const { return _server ? _server->serverPort() : 0; }
 
+    // 获取文件保存的基础目录
+    QString receivePath() const { return _basePath; }
+
     // 中转模式：开始接收通过服务器中转的文件
     void startRelayReceive(RegistryClient* registry, int relayId, int fileCount);
     // 中转模式：注入收到的中转消息

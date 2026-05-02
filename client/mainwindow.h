@@ -116,6 +116,7 @@ private:
 
     // === 底部传输队列 ===
     QTableWidget* _transferQueue = nullptr; // 传输任务表格
+    QLabel* _receivePathLabel = nullptr;    // 接收文件保存路径提示
 
     // === 核心模块 ===
     RegistryClient* _registry = nullptr;    // 注册客户端

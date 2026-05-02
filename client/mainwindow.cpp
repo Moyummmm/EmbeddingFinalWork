@@ -11,6 +11,7 @@
 #include <QCloseEvent>
 #include <QHostInfo>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QFileInfo>
 #include <QDebug>
 #include <QStyle>
@@ -200,6 +201,14 @@ MainWindow::MainWindow(QWidget* parent)
     _transferQueue->setMaximumHeight(180);
     mainLayout->addWidget(_transferQueue);
 
+    // 接收文件保存路径提示
+    _receivePathLabel = new QLabel(QStringLiteral("接收文件保存位置: ") +
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+        + QStringLiteral("/P2P_Received/"));
+    _receivePathLabel->setStyleSheet(QStringLiteral("color: gray; font-size: 11px;"));
+    _receivePathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    mainLayout->addWidget(_receivePathLabel);
+
     // ===== 按钮信号连接 =====
     connect(_registerBtn, &QPushButton::clicked, this, &MainWindow::onRegisterClicked);
     connect(_unregisterBtn, &QPushButton::clicked, this, &MainWindow::onUnregisterClicked);
@@ -376,12 +385,40 @@ void MainWindow::onP2PListeningStarted(quint16 port) {
     _p2pPortSpin->setValue(static_cast<int>(port));
 }
 
-// 收到文件（预留：可用于状态栏提示）
-void MainWindow::onP2PFileReceived(const QString& /*savedPath*/) {
+// 收到文件：在传输队列中显示已接收的文件
+void MainWindow::onP2PFileReceived(const QString& savedPath) {
+    QFileInfo fi(savedPath);
+    QString fileName = fi.fileName();
+
+    // 添加到传输队列
+    int row = _transferQueue->rowCount();
+    _transferQueue->insertRow(row);
+
+    QTableWidgetItem* nameItem = new QTableWidgetItem(fileName);
+    nameItem->setToolTip(savedPath);
+    _transferQueue->setItem(row, 0, nameItem);
+
+    _transferQueue->setItem(row, 1, new QTableWidgetItem(QStringLiteral("接收")));
+    _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(fi.size())));
+
+    // 进度条
+    auto* bar = new QProgressBar();
+    bar->setRange(0, 100);
+    bar->setValue(100);
+    bar->setFormat(QStringLiteral("100%"));
+    _transferQueue->setCellWidget(row, 3, bar);
+
+    QTableWidgetItem* statusItem = new QTableWidgetItem(QStringLiteral("已接收"));
+    _transferQueue->setItem(row, 4, statusItem);
+
+    _queueEntries[row] = QueueEntry{bar, nullptr};
+
+    qDebug() << "[MainWindow] onP2PFileReceived:" << savedPath;
 }
 
-// P2P 传输完成（预留：可用于状态栏提示）
-void MainWindow::onP2PTransferCompleted(int /*success*/, int /*failed*/) {
+// P2P 传输完成
+void MainWindow::onP2PTransferCompleted(int success, int failed) {
+    qDebug() << "[MainWindow] onP2PTransferCompleted: success=" << success << " failed=" << failed;
 }
 
 // P2P 服务器错误（预留：可用于日志记录）
@@ -405,7 +442,7 @@ void MainWindow::onTransferProgress(const QString& fileName, int percent) {
     }
 }
 
-// 单个文件传输完成：更新状态，成功则 3 秒后自动移除行
+// 单个文件传输完成：更新状态，保留在队列中供用户查看
 void MainWindow::onTransferFileCompleted(const QString& fileName, const QString& status) {
     int row = findQueueRow(fileName);
     if (row < 0) return;
@@ -415,29 +452,16 @@ void MainWindow::onTransferFileCompleted(const QString& fileName, const QString&
         statusItem->setText(status);
     }
 
-    if (status == QStringLiteral("完成")) {
-        // 3 秒后自动移除已完成的行
-        QTimer* timer = new QTimer(this);
-        timer->setSingleShot(true);
-        int capturedRow = row;
-        connect(timer, &QTimer::timeout, this, [this, capturedRow]() {
-            // 通过定时器指针重新定位行号（行号可能已偏移）
-            for (int r = _transferQueue->rowCount() - 1; r >= 0; --r) {
-                auto it2 = _queueEntries.find(r);
-                if (it2 != _queueEntries.end() && it2->removeTimer == sender()) {
-                    _transferQueue->removeRow(r);
-                    _queueEntries.erase(it2);
-                    break;
-                }
-            }
-        });
-
-        auto it = _queueEntries.find(row);
-        if (it != _queueEntries.end()) {
-            it->removeTimer = timer;
-            timer->start(3000);
+    // 更新进度条为 100%
+    auto it = _queueEntries.find(row);
+    if (it != _queueEntries.end() && it->bar) {
+        if (status == QStringLiteral("完成")) {
+            it->bar->setValue(100);
+            it->bar->setFormat(QStringLiteral("100%"));
         }
-    } else if (status == QStringLiteral("失败")) {
+    }
+
+    if (status == QStringLiteral("失败")) {
         QTableWidgetItem* item = _transferQueue->item(row, 0);
         if (item) {
             item->setToolTip(QStringLiteral("传输失败"));
@@ -445,8 +469,10 @@ void MainWindow::onTransferFileCompleted(const QString& fileName, const QString&
     }
 }
 
-// 所有文件传输完成（预留：可在此启动下一批队列）
-void MainWindow::onTransferFinished(int /*success*/, int /*failed*/) {
+// 所有文件传输完成：显示状态栏提示
+void MainWindow::onTransferFinished(int success, int failed) {
+    statusBar()->showMessage(
+        QStringLiteral("传输完成: %1 成功, %2 失败").arg(success).arg(failed), 10000);
 }
 
 // 传输错误

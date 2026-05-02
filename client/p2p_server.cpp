@@ -228,7 +228,11 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             sess.currentFileExpectedSize = fs.size;
             sess.currentFileReceivedBytes = 0;
 
+            qDebug() << "[P2PServer] file_start: saving to" << fullPath << "size=" << fs.size;
+
             if (!sess.currentFile->open(QIODevice::WriteOnly)) {
+                qDebug() << "[P2PServer] ERROR: cannot open file for writing:" << fullPath
+                         << "error=" << sess.currentFile->errorString();
                 delete sess.currentFile;
                 sess.currentFile = nullptr;
 
@@ -258,6 +262,9 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             sess.currentFile->write(chunk);
             sess.currentFileReceivedBytes += static_cast<uint64_t>(chunk.size());
 
+            qDebug() << "[P2PServer] file_data: wrote" << chunk.size() << "bytes to"
+                     << sess.currentFilePath << "total=" << sess.currentFileReceivedBytes;
+
             FileAck ack;
             ack.path = fd.path;
             ack.offset = fd.offset + static_cast<uint64_t>(chunk.size());
@@ -269,12 +276,16 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
 
             if (sess.currentFile) {
                 sess.currentFile->close();
+                qDebug() << "[P2PServer] file_end: closed file" << sess.currentFilePath
+                         << "received" << sess.currentFileReceivedBytes << "bytes"
+                         << "expected" << sess.currentFileExpectedSize << "bytes";
                 delete sess.currentFile;
                 sess.currentFile = nullptr;
             }
 
             if (fe.status == "ok") {
                 sess.successCount++;
+                qDebug() << "[P2PServer] file saved:" << sess.currentFilePath;
                 emit fileReceived(sess.currentFilePath);
             } else {
                 sess.failedCount++;

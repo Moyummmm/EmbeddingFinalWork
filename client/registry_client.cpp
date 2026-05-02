@@ -125,17 +125,22 @@ void RegistryClient::onDisconnected() {
 }
 
 // 收到数据，循环解码帧并处理
+// 注意：_recvBuf 必须用 QByteArray 而非 QString，因为帧头是二进制数据，
+// 经过 QString::fromUtf8/toStdString 往返会破坏 >=0x80 的字节（UTF-8 续接字节被替换为 U+FFFD）。
 void RegistryClient::onReadyRead() {
-    QByteArray data = _socket->readAll();
-    _recvBuf.append(QString::fromUtf8(data));
-
-    std::string buf = _recvBuf.toStdString();
+    _recvBuf.append(_socket->readAll());
 
     // 循环解码：只要缓冲区中有完整帧就持续处理
     while (true) {
+        std::string buf(_recvBuf.constData(), static_cast<size_t>(_recvBuf.size()));
         auto payload = try_decode_frame(buf);
-        if (!payload) break;
-        _recvBuf = QString::fromStdString(buf);
+        if (!payload) {
+            // 将未消费的数据写回缓冲区
+            _recvBuf = QByteArray(buf.data(), static_cast<int>(buf.size()));
+            break;
+        }
+        // 已消费的数据从缓冲区移除，继续尝试解码下一帧
+        _recvBuf = QByteArray(buf.data(), static_cast<int>(buf.size()));
         processMessage(*payload);
     }
 }

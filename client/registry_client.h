@@ -69,7 +69,7 @@ private:
 
     QTcpSocket* _socket = nullptr;      // TCP 套接字
     State _state = State::Disconnected; // 当前连接状态
-    QString _recvBuf;                   // 接收缓冲区
+    QByteArray _recvBuf;                // 接收缓冲区（二进制，不能用 QString）
 
     // 等待响应的操作类型
     enum class Op { None, Register, Query, Unregister };

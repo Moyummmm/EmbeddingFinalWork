@@ -348,8 +348,8 @@ void MainWindow::onP2PError(const QString& message) {
     Q_UNUSED(message);
 }
 
-// ============================================================
-//  P2P 文件发送器信号处理
+// ================================ ============================
+//  P2P 文件发送器信号处理   
 // ============================================================
 
 void MainWindow::onTransferProgress(const QString& fileName, int percent) {

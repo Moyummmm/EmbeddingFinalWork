@@ -51,10 +51,31 @@ if(WIN32)
     )
 
     if(WINDEPLOYQT_EXECUTABLE)
+        # --no-compiler-runtime: skip libstdc++/libgcc_s/libwinpthread
+        # because windeployqt copies Qt's own MinGW runtime which may be
+        # incompatible with the compiler that built the exe.
         add_custom_command(TARGET client POST_BUILD
-            COMMAND "${WINDEPLOYQT_EXECUTABLE}" "$<TARGET_FILE:client>"
-            COMMENT "windeployqt: copying Qt DLLs..."
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-compiler-runtime "$<TARGET_FILE:client>"
+            COMMENT "windeployqt: copying Qt DLLs (runtime excluded)..."
         )
+
+        # Copy the correct compiler runtime DLLs from the compiler's own directory
+        get_filename_component(_compiler_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        set(_rt_dlls
+            libstdc++-6.dll
+            libgcc_s_seh-1.dll
+            libwinpthread-1.dll
+        )
+        foreach(_dll ${_rt_dlls})
+            if(EXISTS "${_compiler_bin}/${_dll}")
+                add_custom_command(TARGET client POST_BUILD
+                    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                        "${_compiler_bin}/${_dll}"
+                        "$<TARGET_FILE_DIR:client>"
+                    COMMENT "Copying ${_dll} from compiler"
+                )
+            endif()
+        endforeach()
     else()
         message(WARNING "windeployqt not found — run it manually before launching client.exe")
     endif()

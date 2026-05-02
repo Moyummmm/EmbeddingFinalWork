@@ -32,16 +32,36 @@ cmake --build . -j$(nproc)
 # 2. 安装 CMake（https://cmake.org/download/）
 # 3. 安装 Visual Studio 2022 或 MinGW-w64
 
+# 打开 Qt 对应的命令提示符（Qt 6.x for Desktop (MSVC/MinGW)）
+
 # 构建（MSVC）
 cd client
-mkdir build
-cd build
+mkdir build && cd build
 cmake .. -DCMAKE_PREFIX_PATH=C:/Qt/6.x.x/msvc2019_64
 cmake --build . --config Release
 
 # 构建（MinGW）
 cmake .. -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH=C:/Qt/6.x.x/mingw_64
 cmake --build .
+```
+
+### Windows 部署（重要）
+
+编译后的 exe 需要 Qt DLL 才能运行，否则**无法启动且无任何提示**。
+
+**方法一：windeployqt（推荐，可分发）**
+
+```powershell
+# 进入构建目录，将 Qt DLL 复制到 exe 旁边
+cd client\build\Release    # 或 build\ （MinGW）
+windeployqt client.exe
+```
+
+**方法二：从 Qt 命令提示符运行**
+
+```powershell
+# 在 Qt 6.x for Desktop 命令提示符中运行（已自动配置 PATH）
+.\client\build\Release\client.exe
 ```
 
 ## 启动
@@ -94,6 +114,7 @@ cmake --build .
 
 | 问题 | 解决 |
 |------|------|
+| Windows 双击 exe 无反应 / 无 GUI | Qt DLL 未找到，执行 `windeployqt client.exe` 或从 Qt 命令提示符运行 |
 | 注册失败 | 检查 Registry Server 是否运行、IP 是否正确、端口是否一致 |
 | 对端列表为空 | 确保两个客户端都注册到了同一个 Registry Server |
 | 发送失败（对端离线） | 检查防火墙是否放行 P2P 端口、虚拟机是否桥接模式 |

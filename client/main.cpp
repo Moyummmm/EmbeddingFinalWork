@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QMessageBox>
 #include <cstdlib>
 
 #include "mainwindow.h"
@@ -20,7 +21,9 @@ int main(int argc, char* argv[]) {
     // --- P2P Server (runs on main thread via Qt event loop) ---
     P2PServer p2pServer;
     if (!p2pServer.startListening(p2pPort)) {
-        // startListening emits errorOccurred; exit
+        QMessageBox::critical(nullptr, QStringLiteral("启动失败"),
+            QStringLiteral("无法监听 P2P 端口 %1，端口可能已被占用。")
+                .arg(p2pPort == 0 ? QStringLiteral("(随机)") : QString::number(p2pPort)));
         return 1;
     }
 

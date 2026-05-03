@@ -113,7 +113,7 @@ private:
     // === 中间箭头 ===
     QPushButton* _sendRightBtn = nullptr;   // →
     QPushButton* _sendLeftBtn = nullptr;    // ←
-    QLabel* _transferInfoLabel = nullptr;   // 传输信息提示
+    QLabel* _transferInfoLabel = nullptr;   // 传输Info提示
 
     // === 底部传输队列 ===
     QTableWidget* _transferQueue = nullptr;

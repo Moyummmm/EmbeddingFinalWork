@@ -10,7 +10,7 @@
 #define SLOG_YELLOW  "\033[33m"
 #define SLOG_CYAN    "\033[36m"
 
-#define LOG_INFO(msg)  std::cout << SLOG_GREEN << "[信息] " << SLOG_RESET << msg << std::endl
+#define LOG_INFO(msg)  std::cout << SLOG_GREEN << "[Info] " << SLOG_RESET << msg << std::endl
 #define LOG_WARN(msg)  std::cout << SLOG_YELLOW << "[警告] " << SLOG_RESET << msg << std::endl
 #define LOG_ERR(msg)   std::cerr << SLOG_RED << "[错误] " << SLOG_RESET << msg << std::endl
 

@@ -25,7 +25,7 @@ inline void coloredMessageHandler(QtMsgType type, const QMessageLogContext& /*co
         break;
     case QtInfoMsg:
         color = LOG_GREEN;
-        tag = "[信息]";
+        tag = "[Info]";
         break;
     case QtWarningMsg:
         color = LOG_YELLOW;

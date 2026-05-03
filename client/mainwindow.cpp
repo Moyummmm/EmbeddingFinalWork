@@ -796,9 +796,15 @@ void MainWindow::addToTransferQueue(const QStringList& files, const QString& dir
 }
 
 int MainWindow::findQueueRow(const QString& fileName) {
+    // 精确匹配
     for (int r = 0; r < _transferQueue->rowCount(); ++r) {
         QTableWidgetItem* item = _transferQueue->item(r, 0);
         if (item && item->text() == fileName) return r;
+    }
+    // 后缀匹配：处理目录内文件（队列显示 file.txt，信号发 sub/file.txt）
+    for (int r = 0; r < _transferQueue->rowCount(); ++r) {
+        QTableWidgetItem* item = _transferQueue->item(r, 0);
+        if (item && fileName.endsWith(QStringLiteral("/") + item->text())) return r;
     }
     return -1;
 }

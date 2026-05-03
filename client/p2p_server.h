@@ -11,7 +11,7 @@
 // 前向声明
 class RegistryClient;
 
-// P2P 接收服务器：运行在主线程上，接受对端的 P2P 连接
+// P2P 接收服务器：运行在主线程，接受对端的 P2P 连接
 // 每个连接处理一个传输会话（push_hello → 文件数据 → transfer_done → bye）
 // 支持两种模式：直连模式（TCP 监听）和服务器中转模式（Relay）
 class P2PServer : public QObject {

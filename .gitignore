@@ -2,6 +2,10 @@
 build/
 **/build/
 
+# Report space
+report-space/
+.venv/
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/

@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QQueue>
 #include <QFile>
+#include <QCryptographicHash>
 
 // 前向声明
 class RegistryClient;
@@ -82,6 +83,7 @@ private:
     uint64_t _currentFileSize = 0;              // 当前文件总大小
     uint64_t _currentFileSent = 0;              // 当前文件已发送字节数
     uint64_t _currentAckOffset = 0;             // 接收端确认的偏移量
+    QCryptographicHash* _currentFileHash = nullptr; // 当前文件的 SHA-256 校验（逐块累积）
 
     // 每个数据块大小：64KB
     static constexpr int CHUNK_SIZE = 64 * 1024;

@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QNetworkProxy>
+#include <QCryptographicHash>
 #include <QDebug>
 
 P2PTransfer::P2PTransfer(QObject* parent)
@@ -117,6 +118,8 @@ void P2PTransfer::abort() {
     }
     delete _currentFile;
     _currentFile = nullptr;
+    delete _currentFileHash;
+    _currentFileHash = nullptr;
 
     _socket->disconnectFromHost();
     _recvBuf.clear();
@@ -285,6 +288,9 @@ void P2PTransfer::sendNextFile() {
     _currentFileSent = 0;
     _currentAckOffset = 0;
 
+    delete _currentFileHash;
+    _currentFileHash = new QCryptographicHash(QCryptographicHash::Sha256);
+
     _currentFile = new QFile(filePath);
     if (!_currentFile->open(QIODevice::ReadOnly)) {
         delete _currentFile;
@@ -329,6 +335,9 @@ void P2PTransfer::sendFileChunk() {
         FileEnd fe;
         fe.path = _currentRelativePath.toStdString();
         fe.status = "ok";
+        fe.checksum = _currentFileHash->result().toHex().toStdString();
+        delete _currentFileHash;
+        _currentFileHash = nullptr;
         sendJsonMessage(nlohmann::json(fe).dump());
         return;
     }
@@ -336,6 +345,9 @@ void P2PTransfer::sendFileChunk() {
     // 读取并发送一个数据块（64KB）
     QByteArray chunk = _currentFile->read(CHUNK_SIZE);
     if (chunk.isEmpty()) return;
+
+    // 累积计算 SHA-256 校验值
+    _currentFileHash->addData(chunk);
 
     FileData fd;
     fd.path = _currentRelativePath.toStdString();

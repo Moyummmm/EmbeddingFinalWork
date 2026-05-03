@@ -7,6 +7,7 @@
 #include <QString>
 #include <QHash>
 #include <QFile>
+#include <QCryptographicHash>
 
 // 前向声明
 class RegistryClient;
@@ -66,6 +67,7 @@ private:
         uint64_t currentFileExpectedSize = 0;   // 当前文件预期大小
         uint64_t currentFileReceivedBytes = 0;  // 当前文件已接收字节数
         QString currentFilePath;                // 当前文件的保存路径
+        QCryptographicHash* currentFileHash = nullptr; // 当前文件的 SHA-256 校验（逐块累积）
     };
 
     QTcpServer* _server = nullptr;              // TCP 服务器

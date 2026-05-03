@@ -93,8 +93,9 @@ struct FileEnd {
     std::string path;       // 文件路径
     std::string status = "ok";    // "ok" 表示成功，"error" 表示失败
     std::string error;            // 失败时的错误描述
+    std::string checksum;         // CRC32 校验值（十六进制），用于完整性校验
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FileEnd, type, path, status, error)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FileEnd, type, path, status, error, checksum)
 
 // 文件确认：接收端确认已收到的数据偏移量
 struct FileAck {

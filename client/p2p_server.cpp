@@ -88,6 +88,8 @@ void P2PServer::stopListening() {
             delete _relaySession.currentFile;
             _relaySession.currentFile = nullptr;
         }
+        delete _relaySession.currentFileHash;
+        _relaySession.currentFileHash = nullptr;
         _relayMode = false;
         _relayRegistry = nullptr;
     }
@@ -100,6 +102,8 @@ void P2PServer::stopListening() {
             delete sess.currentFile;
             sess.currentFile = nullptr;
         }
+        delete sess.currentFileHash;
+        sess.currentFileHash = nullptr;
         sess.socket->disconnectFromHost();
     }
     _sessions.clear();
@@ -174,6 +178,8 @@ void P2PServer::onDisconnected() {
         delete sess.currentFile;
         sess.currentFile = nullptr;
     }
+    delete sess.currentFileHash;
+    sess.currentFileHash = nullptr;
 
     _sessions.erase(it);
     socket->deleteLater();
@@ -228,6 +234,9 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             sess.currentFileExpectedSize = fs.size;
             sess.currentFileReceivedBytes = 0;
 
+            delete sess.currentFileHash;
+            sess.currentFileHash = new QCryptographicHash(QCryptographicHash::Sha256);
+
             qDebug() << "[P2PServer] file_start: saving to" << fullPath << "size=" << fs.size;
 
             if (!sess.currentFile->open(QIODevice::WriteOnly)) {
@@ -235,6 +244,8 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
                          << "error=" << sess.currentFile->errorString();
                 delete sess.currentFile;
                 sess.currentFile = nullptr;
+                delete sess.currentFileHash;
+                sess.currentFileHash = nullptr;
 
                 FileEnd fe;
                 fe.path = fs.path;
@@ -261,6 +272,7 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             QByteArray chunk = QByteArray::fromBase64(QByteArray::fromStdString(fd.data));
             sess.currentFile->write(chunk);
             sess.currentFileReceivedBytes += static_cast<uint64_t>(chunk.size());
+            sess.currentFileHash->addData(chunk);
 
             qDebug() << "[P2PServer] file_data: wrote" << chunk.size() << "bytes to"
                      << sess.currentFilePath << "total=" << sess.currentFileReceivedBytes;
@@ -271,7 +283,7 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             sendResponseMessage(sess.socket, nlohmann::json(ack).dump());
 
         } else if (type == "file_end") {
-            // 收到文件结束：关闭文件并通知上层
+            // 收到文件结束：关闭文件，校验完整性，通知上层
             auto fe = j.get<FileEnd>();
 
             if (sess.currentFile) {
@@ -283,13 +295,33 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
                 sess.currentFile = nullptr;
             }
 
-            if (fe.status == "ok") {
+            // SHA-256 完整性校验
+            bool checksumOk = true;
+            if (sess.currentFileHash) {
+                QString localHash = QString::fromLatin1(sess.currentFileHash->result().toHex());
+                QString remoteHash = QString::fromStdString(fe.checksum);
+                delete sess.currentFileHash;
+                sess.currentFileHash = nullptr;
+
+                if (!remoteHash.isEmpty() && localHash != remoteHash) {
+                    qDebug() << "[P2PServer] CHECKSUM MISMATCH for" << sess.currentFilePath
+                             << "local=" << localHash << "remote=" << remoteHash;
+                    checksumOk = false;
+                } else {
+                    qDebug() << "[P2PServer] checksum OK for" << sess.currentFilePath;
+                }
+            }
+
+            if (fe.status == "ok" && checksumOk) {
                 sess.successCount++;
                 qDebug() << "[P2PServer] file saved:" << sess.currentFilePath;
                 emit fileReceived(sess.currentFilePath);
             } else {
                 sess.failedCount++;
                 QFile::remove(sess.currentFilePath);
+                if (!checksumOk) {
+                    qDebug() << "[P2PServer] file removed due to checksum mismatch:" << sess.currentFilePath;
+                }
             }
 
             sess.completedFileCount++;

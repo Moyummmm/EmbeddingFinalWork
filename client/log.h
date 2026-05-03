@@ -21,7 +21,7 @@ inline void coloredMessageHandler(QtMsgType type, const QMessageLogContext& /*co
     switch (type) {
     case QtDebugMsg:
         color = LOG_CYAN;
-        tag = "[调试]";
+        tag = "[Info]";
         break;
     case QtInfoMsg:
         color = LOG_GREEN;

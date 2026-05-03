@@ -110,7 +110,7 @@ static bool hasFirewallRule() {
 }
 #endif
 
-// 全局日志文件，用于记录启动过程中的调试信息
+// 全局日志文件，用于记录启动过程中的Info信息
 static QFile g_logFile;
 
 // 向日志文件追加一条带时间戳的消息

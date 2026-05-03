@@ -227,7 +227,15 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             // 读取本地文件系统并返回结果
             std::vector<DirEntry> entries;
             std::string error;
-            std::string actualPath = fwdPath.empty() ? QDir::homePath().toStdString() : fwdPath;
+            // 支持 ~ 前缀跨平台解析
+            std::string actualPath;
+            if (fwdPath.empty()) {
+                actualPath = QDir::homePath().toStdString();
+            } else if (fwdPath.size() >= 2 && fwdPath[0] == '~' && fwdPath[1] == '/') {
+                actualPath = QDir::homePath().toStdString() + fwdPath.substr(1);
+            } else {
+                actualPath = fwdPath;
+            }
             QDir dir(QString::fromStdString(actualPath));
 
             qDebug() << "[RegistryClient] browse_fwd: listing dir=" << QString::fromStdString(actualPath)
@@ -249,13 +257,29 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             qDebug() << "[RegistryClient] browse_fwd: sending response, entries=" << entries.size()
                      << " error=" << QString::fromStdString(error);
 
-            // 通过服务器中转回送浏览结果
-            sendBrowseResponse(reqId, actualPath, entries, error);
+            // 通过服务器中转回送浏览结果，路径统一为 ~/ 相对格式
+            std::string homeDir = QDir::homePath().toStdString();
+            std::string responsePath = fwdPath;
+            if (actualPath == homeDir) {
+                responsePath = "~";
+            } else if (actualPath.size() > homeDir.size() && actualPath.substr(0, homeDir.size()) == homeDir) {
+                responsePath = "~" + actualPath.substr(homeDir.size());
+            }
+            sendBrowseResponse(reqId, responsePath, entries, error);
         } else if (type == "transfer_fwd") {
             // 收到服务器转发的传输请求（作为接收端）
             int relayId = j.value("relay_id", 0);
             int fileCount = j.value("file_count", 0);
-            QString targetPath = QString::fromStdString(j.value("target_path", std::string("")));
+            std::string rawPath = j.value("target_path", std::string(""));
+            // 展开 ~ 为本机 home 目录
+            QString targetPath;
+            if (rawPath.empty()) {
+                targetPath = QDir::homePath();
+            } else if (rawPath.size() >= 1 && rawPath[0] == '~') {
+                targetPath = QDir::homePath() + QString::fromStdString(rawPath).mid(1);
+            } else {
+                targetPath = QString::fromStdString(rawPath);
+            }
             qDebug() << "[RegistryClient] transfer_fwd: relayId=" << relayId
                      << " fileCount=" << fileCount << " targetPath=" << targetPath;
             emit transferForwardReceived(relayId, fileCount, targetPath);

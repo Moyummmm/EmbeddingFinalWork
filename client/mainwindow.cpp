@@ -525,7 +525,7 @@ void MainWindow::onPeerComboChanged(int index) {
     _sendLeftBtn->setEnabled(_registered);
 
     _registry->sendBrowseRequest(ip, port,
-        QDir::homePath() + QStringLiteral("/Downloads"));
+        QStringLiteral("~/Downloads"));
 }
 
 // 收到远端目录列表

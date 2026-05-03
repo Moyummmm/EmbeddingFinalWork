@@ -83,3 +83,4 @@ if(WIN32)
         message(WARNING "windeployqt not found — run it manually before launching client.exe")
     endif()
 endif()
+# 

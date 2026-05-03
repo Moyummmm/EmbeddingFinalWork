@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QSplitter>
 #include <QGroupBox>
+#include <QFrame>
 #include <QHeaderView>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -26,7 +27,274 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
     setWindowTitle(QStringLiteral("P2P 文件传输 — [未注册]"));
+    setWindowIcon(QIcon(QStringLiteral(":/icon.png")));
     resize(1200, 700);
+
+    // ===== 全局样式表 =====
+    setStyleSheet(QStringLiteral(R"(
+        /* 全局基础 */
+        QWidget {
+            font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+            font-size: 13px;
+        }
+
+        /* 顶部配置栏背景 */
+        QFrame#configBar {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #f8f9fa, stop:1 #e9ecef);
+            border-bottom: 1px solid #dee2e6;
+            padding: 6px;
+        }
+
+        /* 输入框 */
+        QLineEdit, QSpinBox {
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 4px 8px;
+            background: white;
+            selection-background-color: #4dabf7;
+        }
+        QLineEdit:focus, QSpinBox:focus {
+            border-color: #4dabf7;
+        }
+
+        /* 按钮基础 */
+        QPushButton {
+            background-color: #f8f9fa;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 5px 14px;
+            min-height: 22px;
+        }
+        QPushButton:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        QPushButton:pressed {
+            background-color: #dee2e6;
+        }
+        QPushButton:disabled {
+            background-color: #f8f9fa;
+            color: #adb5bd;
+            border-color: #e9ecef;
+        }
+
+        /* 注册按钮特殊样式 */
+        QPushButton#registerBtn {
+            background-color: #4dabf7;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        QPushButton#registerBtn:hover {
+            background-color: #339af0;
+        }
+        QPushButton#registerBtn:pressed {
+            background-color: #228be6;
+        }
+
+        /* 注销按钮 */
+        QPushButton#unregisterBtn {
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+        }
+        QPushButton#unregisterBtn:hover {
+            background-color: #fa5252;
+        }
+
+        /* 刷新按钮 */
+        QPushButton#refreshBtn {
+            background-color: #51cf66;
+            color: white;
+            border: none;
+        }
+        QPushButton#refreshBtn:hover {
+            background-color: #40c057;
+        }
+
+        /* 箭头按钮 */
+        QPushButton#sendRightBtn, QPushButton#sendLeftBtn {
+            background-color: #4dabf7;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 22px;
+            font-weight: bold;
+        }
+        QPushButton#sendRightBtn:hover, QPushButton#sendLeftBtn:hover {
+            background-color: #339af0;
+        }
+        QPushButton#sendRightBtn:disabled, QPushButton#sendLeftBtn:disabled {
+            background-color: #dee2e6;
+            color: #adb5bd;
+        }
+
+        /* 树视图 */
+        QTreeView {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background: white;
+            alternate-background-color: #f8f9fa;
+            outline: none;
+        }
+        QTreeView::item {
+            padding: 3px 4px;
+            min-height: 22px;
+        }
+        QTreeView::item:hover {
+            background: #e7f5ff;
+        }
+        QTreeView::item:selected {
+            background: #4dabf7;
+            color: white;
+        }
+        QTreeView::branch:hover {
+            background: #e7f5ff;
+        }
+
+        /* 下拉框 */
+        QComboBox {
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 4px 8px;
+            background: white;
+        }
+        QComboBox:hover {
+            border-color: #adb5bd;
+        }
+        QComboBox::drop-down {
+            border: none;
+            width: 24px;
+        }
+        QComboBox QAbstractItemView {
+            border: 1px solid #dee2e6;
+            background: white;
+            selection-background-color: #4dabf7;
+        }
+
+        /* 表格（传输队列） */
+        QTableWidget {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background: white;
+            gridline-color: #f1f3f5;
+        }
+        QTableWidget::item {
+            padding: 2px 6px;
+        }
+        QTableWidget::item:selected {
+            background: #e7f5ff;
+            color: #1864ab;
+        }
+        QHeaderView::section {
+            background: #f1f3f5;
+            border: none;
+            border-bottom: 2px solid #4dabf7;
+            border-right: 1px solid #dee2e6;
+            padding: 5px 8px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        /* 进度条 */
+        QProgressBar {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            text-align: center;
+            background: #f1f3f5;
+            min-height: 18px;
+            max-height: 18px;
+        }
+        QProgressBar::chunk {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #4dabf7, stop:1 #339af0);
+            border-radius: 3px;
+        }
+
+        /* 分割器手柄 */
+        QSplitter::handle {
+            background: #dee2e6;
+            width: 2px;
+        }
+        QSplitter::handle:hover {
+            background: #4dabf7;
+        }
+
+        /* 标签 */
+        QLabel#sectionTitle {
+            font-weight: bold;
+            color: #343a40;
+            padding: 4px 0;
+        }
+        QLabel#pathLabel {
+            font-weight: bold;
+            color: #495057;
+            padding: 4px 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        QLabel#infoLabel {
+            color: #868e96;
+            font-size: 11px;
+        }
+
+        /* 状态栏 */
+        QStatusBar {
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            color: #495057;
+        }
+
+        /* GroupBox */
+        QGroupBox {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            margin-top: 8px;
+            padding-top: 12px;
+            font-weight: bold;
+            color: #495057;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 12px;
+            padding: 0 6px;
+        }
+
+        /* 滚动条 */
+        QScrollBar:vertical {
+            background: transparent;
+            width: 10px;
+            border-radius: 5px;
+        }
+        QScrollBar::handle:vertical {
+            background: #ced4da;
+            border-radius: 5px;
+            min-height: 30px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #adb5bd;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0;
+        }
+        QScrollBar:horizontal {
+            background: transparent;
+            height: 10px;
+            border-radius: 5px;
+        }
+        QScrollBar::handle:horizontal {
+            background: #ced4da;
+            border-radius: 5px;
+            min-width: 30px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background: #adb5bd;
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0;
+        }
+    )"));
 
     // --- 创建核心模块 ---
     _registry = new RegistryClient(this);
@@ -63,7 +331,9 @@ MainWindow::MainWindow(QWidget* parent)
     QVBoxLayout* mainLayout = new QVBoxLayout(central);
 
     // ===== 顶部配置栏 =====
-    QHBoxLayout* configLayout = new QHBoxLayout();
+    QFrame* configBar = new QFrame();
+    configBar->setObjectName(QStringLiteral("configBar"));
+    QHBoxLayout* configLayout = new QHBoxLayout(configBar);
 
     configLayout->addWidget(new QLabel(QStringLiteral("Server IP:")));
     _serverIpEdit = new QLineEdit(QStringLiteral("127.0.0.1"));
@@ -95,14 +365,17 @@ MainWindow::MainWindow(QWidget* parent)
     configLayout->addWidget(_p2pPortSpin);
 
     _registerBtn = new QPushButton(QStringLiteral("注册"));
+    _registerBtn->setObjectName(QStringLiteral("registerBtn"));
     _unregisterBtn = new QPushButton(QStringLiteral("注销"));
+    _unregisterBtn->setObjectName(QStringLiteral("unregisterBtn"));
     _refreshBtn = new QPushButton(QStringLiteral("刷新"));
+    _refreshBtn->setObjectName(QStringLiteral("refreshBtn"));
     configLayout->addWidget(_registerBtn);
     configLayout->addWidget(_unregisterBtn);
     configLayout->addWidget(_refreshBtn);
     configLayout->addStretch();
 
-    mainLayout->addLayout(configLayout);
+    mainLayout->addWidget(configBar);
 
     // ===== 中部：三栏分割器 =====
     QSplitter* splitter = new QSplitter(Qt::Horizontal);
@@ -114,7 +387,8 @@ MainWindow::MainWindow(QWidget* parent)
 
     _localPathLabel = new QLabel(QStringLiteral("本机: %1").arg(
         QDir::homePath() + QStringLiteral("/Downloads")));
-    _localPathLabel->setStyleSheet(QStringLiteral("font-weight: bold; padding: 4px;"));
+    _localPathLabel->setObjectName(QStringLiteral("pathLabel"));
+    _localPathLabel->setStyleSheet(QStringLiteral("font-weight: bold; padding: 4px 8px;"));
     leftLayout->addWidget(_localPathLabel);
 
     _localModel = new QFileSystemModel(this);
@@ -143,6 +417,7 @@ MainWindow::MainWindow(QWidget* parent)
     midLayout->addStretch();
 
     _sendRightBtn = new QPushButton(QStringLiteral("→"));
+    _sendRightBtn->setObjectName(QStringLiteral("sendRightBtn"));
     _sendRightBtn->setFixedSize(60, 50);
     _sendRightBtn->setToolTip(QStringLiteral("发送选中文件到远端"));
     _sendRightBtn->setEnabled(false);
@@ -150,6 +425,7 @@ MainWindow::MainWindow(QWidget* parent)
     midLayout->addSpacing(10);
 
     _sendLeftBtn = new QPushButton(QStringLiteral("←"));
+    _sendLeftBtn->setObjectName(QStringLiteral("sendLeftBtn"));
     _sendLeftBtn->setFixedSize(60, 50);
     _sendLeftBtn->setToolTip(QStringLiteral("从远端拉取选中文件到本机"));
     _sendLeftBtn->setEnabled(false);
@@ -183,7 +459,8 @@ MainWindow::MainWindow(QWidget* parent)
     rightLayout->addLayout(peerLayout);
 
     _remotePathLabel = new QLabel(QStringLiteral("选择对端后浏览"));
-    _remotePathLabel->setStyleSheet(QStringLiteral("font-weight: bold; padding: 4px;"));
+    _remotePathLabel->setObjectName(QStringLiteral("pathLabel"));
+    _remotePathLabel->setStyleSheet(QStringLiteral("font-weight: bold; padding: 4px 8px;"));
     rightLayout->addWidget(_remotePathLabel);
 
     _remoteModel->setHorizontalHeaderLabels({QStringLiteral("名称"), QStringLiteral("大小")});
@@ -227,7 +504,8 @@ MainWindow::MainWindow(QWidget* parent)
     mainLayout->addWidget(_transferQueue);
 
     _receivePathLabel = new QLabel(QStringLiteral("接收文件保存位置: 由对端栏当前目录决定"));
-    _receivePathLabel->setStyleSheet(QStringLiteral("color: gray; font-size: 11px;"));
+    _receivePathLabel->setObjectName(QStringLiteral("infoLabel"));
+    _receivePathLabel->setStyleSheet(QStringLiteral("color: #868e96; font-size: 11px;"));
     _receivePathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     mainLayout->addWidget(_receivePathLabel);
 

@@ -6,6 +6,7 @@
 #include <QStandardPaths>
 #include <QProcess>
 #include <QDir>
+#include <QIcon>
 #include <cstdlib>
 
 #include "mainwindow.h"
@@ -117,6 +118,7 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("P2PFileTransfer"));
+    app.setWindowIcon(QIcon(QStringLiteral(":/icon.png")));
     logStartup(QStringLiteral("QApplication 已创建"));
 
     // 解析可选的命令行参数：P2P 端口号

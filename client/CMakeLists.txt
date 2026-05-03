@@ -4,6 +4,7 @@ project(embedding-client LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 # --- Qt 6 ---
 find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets)
@@ -26,6 +27,7 @@ add_executable(client
     p2p_transfer.cpp
     p2p_browse_client.cpp
     protocol.cpp
+    resources.qrc
 )
 
 target_link_libraries(client PRIVATE

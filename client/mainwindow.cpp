@@ -323,21 +323,34 @@ void MainWindow::onP2PFileReceived(const QString& savedPath) {
     QFileInfo fi(savedPath);
     QString fileName = fi.fileName();
 
-    int row = _transferQueue->rowCount();
-    _transferQueue->insertRow(row);
-    QTableWidgetItem* nameItem = new QTableWidgetItem(fileName);
-    nameItem->setToolTip(savedPath);
-    _transferQueue->setItem(row, 0, nameItem);
-    _transferQueue->setItem(row, 1, new QTableWidgetItem(QStringLiteral("← 接收")));
-    _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(fi.size())));
-
-    auto* bar = new QProgressBar();
-    bar->setRange(0, 100);
-    bar->setValue(100);
-    bar->setFormat(QStringLiteral("100%"));
-    _transferQueue->setCellWidget(row, 3, bar);
-    _transferQueue->setItem(row, 4, new QTableWidgetItem(QStringLiteral("已接收")));
-    _queueEntries[row] = QueueEntry{bar, nullptr};
+    // 查找已有的"等待中"行，更新而非新建
+    int existingRow = findQueueRow(fileName);
+    if (existingRow >= 0) {
+        QTableWidgetItem* nameItem = _transferQueue->item(existingRow, 0);
+        if (nameItem) nameItem->setToolTip(savedPath);
+        QTableWidgetItem* statusItem = _transferQueue->item(existingRow, 4);
+        if (statusItem) statusItem->setText(QStringLiteral("已接收"));
+        auto it = _queueEntries.find(existingRow);
+        if (it != _queueEntries.end() && it->bar) {
+            it->bar->setValue(100);
+            it->bar->setFormat(QStringLiteral("100%"));
+        }
+    } else {
+        int row = _transferQueue->rowCount();
+        _transferQueue->insertRow(row);
+        QTableWidgetItem* nameItem = new QTableWidgetItem(fileName);
+        nameItem->setToolTip(savedPath);
+        _transferQueue->setItem(row, 0, nameItem);
+        _transferQueue->setItem(row, 1, new QTableWidgetItem(QStringLiteral("← 接收")));
+        _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(fi.size())));
+        auto* bar = new QProgressBar();
+        bar->setRange(0, 100);
+        bar->setValue(100);
+        bar->setFormat(QStringLiteral("100%"));
+        _transferQueue->setCellWidget(row, 3, bar);
+        _transferQueue->setItem(row, 4, new QTableWidgetItem(QStringLiteral("已接收")));
+        _queueEntries[row] = QueueEntry{bar, nullptr};
+    }
 
     qDebug() << "[MainWindow] onP2PFileReceived:" << savedPath;
 }
@@ -453,6 +466,10 @@ void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::strin
     QStringList localFiles;
     for (const auto& fp : filePaths) {
         QString qfp = QString::fromStdString(fp);
+        // 展开 ~ 为本机 home 目录
+        if (qfp.startsWith(QStringLiteral("~/"))) {
+            qfp = QDir::homePath() + qfp.mid(1);
+        }
         QFileInfo fi(qfp);
         if (fi.exists() && fi.isFile()) {
             localFiles.append(qfp);

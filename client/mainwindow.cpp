@@ -419,14 +419,6 @@ void MainWindow::onTransferForwardReceived(int relayId, int fileCount, const QSt
     }
     _registry->sendTransferAccept(relayId, true);
     _p2pServer->startRelayReceive(_registry, relayId, fileCount);
-    // 恢复默认路径
-    if (!targetPath.isEmpty()) {
-        QTimer::singleShot(0, this, [this]() {
-            _p2pServer->setBasePath(
-                QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-                + QStringLiteral("/P2P_Received/"));
-        });
-    }
 }
 
 void MainWindow::onTransferAccepted(int relayId, bool accepted) {

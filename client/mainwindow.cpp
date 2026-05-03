@@ -36,224 +36,223 @@ MainWindow::MainWindow(QWidget* parent)
         QWidget {
             font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
             font-size: 13px;
+            color: #333333;
+        }
+        QMainWindow {
+            background: #fafafa;
         }
 
-        /* 顶部配置栏背景 */
+        /* 顶部配置栏 */
         QFrame#configBar {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #f8f9fa, stop:1 #e9ecef);
-            border-bottom: 1px solid #dee2e6;
-            padding: 6px;
+            background: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 8px 12px;
         }
 
         /* 输入框 */
         QLineEdit, QSpinBox {
-            border: 1px solid #ced4da;
-            border-radius: 4px;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
             padding: 4px 8px;
             background: white;
-            selection-background-color: #4dabf7;
+            selection-background-color: #b3d4fc;
         }
         QLineEdit:focus, QSpinBox:focus {
-            border-color: #4dabf7;
+            border-color: #999999;
         }
 
         /* 按钮基础 */
         QPushButton {
-            background-color: #f8f9fa;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
+            background-color: #ffffff;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
             padding: 5px 14px;
             min-height: 22px;
         }
         QPushButton:hover {
-            background-color: #e9ecef;
-            border-color: #adb5bd;
+            background-color: #f5f5f5;
         }
         QPushButton:pressed {
-            background-color: #dee2e6;
+            background-color: #eeeeee;
         }
         QPushButton:disabled {
-            background-color: #f8f9fa;
-            color: #adb5bd;
-            border-color: #e9ecef;
+            background-color: #fafafa;
+            color: #bbbbbb;
+            border-color: #e0e0e0;
         }
 
-        /* 注册按钮特殊样式 */
+        /* 注册按钮 */
         QPushButton#registerBtn {
-            background-color: #4dabf7;
+            background-color: #333333;
             color: white;
             border: none;
-            font-weight: bold;
         }
         QPushButton#registerBtn:hover {
-            background-color: #339af0;
-        }
-        QPushButton#registerBtn:pressed {
-            background-color: #228be6;
+            background-color: #444444;
         }
 
         /* 注销按钮 */
         QPushButton#unregisterBtn {
-            background-color: #ff6b6b;
-            color: white;
-            border: none;
+            background-color: #ffffff;
+            color: #666666;
+            border: 1px solid #cccccc;
         }
         QPushButton#unregisterBtn:hover {
-            background-color: #fa5252;
+            background-color: #f5f5f5;
         }
 
         /* 刷新按钮 */
         QPushButton#refreshBtn {
-            background-color: #51cf66;
-            color: white;
-            border: none;
+            background-color: #ffffff;
+            color: #666666;
+            border: 1px solid #cccccc;
         }
         QPushButton#refreshBtn:hover {
-            background-color: #40c057;
+            background-color: #f5f5f5;
         }
 
         /* 箭头按钮 */
         QPushButton#sendRightBtn, QPushButton#sendLeftBtn {
-            background-color: #4dabf7;
+            background-color: #333333;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 22px;
+            border-radius: 3px;
+            font-size: 14px;
             font-weight: bold;
         }
         QPushButton#sendRightBtn:hover, QPushButton#sendLeftBtn:hover {
-            background-color: #339af0;
+            background-color: #555555;
         }
         QPushButton#sendRightBtn:disabled, QPushButton#sendLeftBtn:disabled {
-            background-color: #dee2e6;
-            color: #adb5bd;
+            background-color: #e0e0e0;
+            color: #aaaaaa;
         }
 
         /* 树视图 */
         QTreeView {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            border-radius: 2px;
             background: white;
-            alternate-background-color: #f8f9fa;
+            alternate-background-color: #fafafa;
             outline: none;
         }
         QTreeView::item {
-            padding: 3px 4px;
+            padding: 3px 6px;
             min-height: 22px;
         }
         QTreeView::item:hover {
-            background: #e7f5ff;
+            background: #f0f0f0;
         }
         QTreeView::item:selected {
-            background: #4dabf7;
+            background: #333333;
             color: white;
         }
         QTreeView::branch:hover {
-            background: #e7f5ff;
+            background: #f0f0f0;
         }
 
         /* 下拉框 */
         QComboBox {
-            border: 1px solid #ced4da;
-            border-radius: 4px;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
             padding: 4px 8px;
             background: white;
         }
         QComboBox:hover {
-            border-color: #adb5bd;
+            border-color: #999999;
         }
         QComboBox::drop-down {
             border: none;
             width: 24px;
         }
         QComboBox QAbstractItemView {
-            border: 1px solid #dee2e6;
+            border: 1px solid #e0e0e0;
             background: white;
-            selection-background-color: #4dabf7;
+            selection-background-color: #333333;
+            selection-color: white;
         }
 
-        /* 表格（传输队列） */
+        /* 表格 */
         QTableWidget {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            border-radius: 2px;
             background: white;
-            gridline-color: #f1f3f5;
+            gridline-color: #f0f0f0;
         }
         QTableWidget::item {
-            padding: 2px 6px;
+            padding: 2px 8px;
         }
         QTableWidget::item:selected {
-            background: #e7f5ff;
-            color: #1864ab;
+            background: #e8e8e8;
+            color: #333333;
         }
         QHeaderView::section {
-            background: #f1f3f5;
+            background: #f5f5f5;
             border: none;
-            border-bottom: 2px solid #4dabf7;
-            border-right: 1px solid #dee2e6;
+            border-bottom: 2px solid #e0e0e0;
+            border-right: 1px solid #e8e8e8;
             padding: 5px 8px;
             font-weight: bold;
-            color: #495057;
+            color: #555555;
         }
 
         /* 进度条 */
         QProgressBar {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            border-radius: 2px;
             text-align: center;
-            background: #f1f3f5;
+            background: #f0f0f0;
             min-height: 18px;
             max-height: 18px;
+            color: #555555;
         }
         QProgressBar::chunk {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #4dabf7, stop:1 #339af0);
-            border-radius: 3px;
+            background-color: #555555;
+            border-radius: 1px;
         }
 
-        /* 分割器手柄 */
+        /* 分割器 */
         QSplitter::handle {
-            background: #dee2e6;
-            width: 2px;
+            background: #e0e0e0;
+            width: 1px;
         }
         QSplitter::handle:hover {
-            background: #4dabf7;
+            background: #999999;
         }
 
         /* 标签 */
         QLabel#sectionTitle {
             font-weight: bold;
-            color: #343a40;
+            color: #333333;
             padding: 4px 0;
         }
         QLabel#pathLabel {
             font-weight: bold;
-            color: #495057;
+            color: #555555;
             padding: 4px 8px;
-            background: #f8f9fa;
-            border-radius: 4px;
+            background: #f5f5f5;
+            border-radius: 2px;
         }
         QLabel#infoLabel {
-            color: #868e96;
+            color: #999999;
             font-size: 11px;
         }
 
         /* 状态栏 */
         QStatusBar {
-            background: #f8f9fa;
-            border-top: 1px solid #dee2e6;
-            color: #495057;
+            background: #f5f5f5;
+            border-top: 1px solid #e0e0e0;
+            color: #666666;
         }
 
         /* GroupBox */
         QGroupBox {
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            border-radius: 3px;
             margin-top: 8px;
             padding-top: 12px;
             font-weight: bold;
-            color: #495057;
+            color: #555555;
         }
         QGroupBox::title {
             subcontrol-origin: margin;
@@ -264,32 +263,32 @@ MainWindow::MainWindow(QWidget* parent)
         /* 滚动条 */
         QScrollBar:vertical {
             background: transparent;
-            width: 10px;
-            border-radius: 5px;
+            width: 8px;
+            border-radius: 4px;
         }
         QScrollBar::handle:vertical {
-            background: #ced4da;
-            border-radius: 5px;
+            background: #cccccc;
+            border-radius: 4px;
             min-height: 30px;
         }
         QScrollBar::handle:vertical:hover {
-            background: #adb5bd;
+            background: #aaaaaa;
         }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
             height: 0;
         }
         QScrollBar:horizontal {
             background: transparent;
-            height: 10px;
-            border-radius: 5px;
+            height: 8px;
+            border-radius: 4px;
         }
         QScrollBar::handle:horizontal {
-            background: #ced4da;
-            border-radius: 5px;
+            background: #cccccc;
+            border-radius: 4px;
             min-width: 30px;
         }
         QScrollBar::handle:horizontal:hover {
-            background: #adb5bd;
+            background: #aaaaaa;
         }
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
             width: 0;
@@ -373,6 +372,26 @@ MainWindow::MainWindow(QWidget* parent)
     configLayout->addWidget(_registerBtn);
     configLayout->addWidget(_unregisterBtn);
     configLayout->addWidget(_refreshBtn);
+
+    configLayout->addSpacing(20);
+    _sendRightBtn = new QPushButton(QStringLiteral("→"));
+    _sendRightBtn->setObjectName(QStringLiteral("sendRightBtn"));
+    _sendRightBtn->setFixedSize(50, 30);
+    _sendRightBtn->setToolTip(QStringLiteral("发送选中文件到远端"));
+    _sendRightBtn->setEnabled(false);
+    configLayout->addWidget(_sendRightBtn);
+
+    _sendLeftBtn = new QPushButton(QStringLiteral("←"));
+    _sendLeftBtn->setObjectName(QStringLiteral("sendLeftBtn"));
+    _sendLeftBtn->setFixedSize(50, 30);
+    _sendLeftBtn->setToolTip(QStringLiteral("从远端拉取选中文件到本机"));
+    _sendLeftBtn->setEnabled(false);
+    configLayout->addWidget(_sendLeftBtn);
+
+    _transferInfoLabel = new QLabel(QString());
+    _transferInfoLabel->setStyleSheet(QStringLiteral("color: #999999; font-size: 11px;"));
+    configLayout->addWidget(_transferInfoLabel);
+
     configLayout->addStretch();
 
     mainLayout->addWidget(configBar);
@@ -410,38 +429,6 @@ MainWindow::MainWindow(QWidget* parent)
 
     splitter->addWidget(leftPanel);
 
-    // --- 中间：箭头按钮 ---
-    QWidget* midPanel = new QWidget();
-    QVBoxLayout* midLayout = new QVBoxLayout(midPanel);
-    midLayout->setAlignment(Qt::AlignCenter);
-    midLayout->addStretch();
-
-    _sendRightBtn = new QPushButton(QStringLiteral("→"));
-    _sendRightBtn->setObjectName(QStringLiteral("sendRightBtn"));
-    _sendRightBtn->setFixedSize(60, 50);
-    _sendRightBtn->setToolTip(QStringLiteral("发送选中文件到远端"));
-    _sendRightBtn->setEnabled(false);
-    midLayout->addWidget(_sendRightBtn);
-    midLayout->addSpacing(10);
-
-    _sendLeftBtn = new QPushButton(QStringLiteral("←"));
-    _sendLeftBtn->setObjectName(QStringLiteral("sendLeftBtn"));
-    _sendLeftBtn->setFixedSize(60, 50);
-    _sendLeftBtn->setToolTip(QStringLiteral("从远端拉取选中文件到本机"));
-    _sendLeftBtn->setEnabled(false);
-    midLayout->addWidget(_sendLeftBtn);
-    midLayout->addSpacing(10);
-
-    _transferInfoLabel = new QLabel(QString());
-    _transferInfoLabel->setWordWrap(true);
-    _transferInfoLabel->setMaximumWidth(120);
-    _transferInfoLabel->setStyleSheet(QStringLiteral("color: #555; font-size: 11px;"));
-    _transferInfoLabel->setAlignment(Qt::AlignCenter);
-    midLayout->addWidget(_transferInfoLabel);
-
-    midLayout->addStretch();
-    splitter->addWidget(midPanel);
-
     // --- 右栏：远端文件 ---
     QWidget* rightPanel = new QWidget();
     QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
@@ -476,10 +463,9 @@ MainWindow::MainWindow(QWidget* parent)
 
     splitter->addWidget(rightPanel);
 
-    // 设置分割比例：左4，中1，右4
-    splitter->setStretchFactor(0, 4);
+    // 设置分割比例：左右均分
+    splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
-    splitter->setStretchFactor(2, 4);
 
     mainLayout->addWidget(splitter, 1);
 

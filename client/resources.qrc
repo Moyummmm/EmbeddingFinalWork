@@ -1,6 +1,5 @@
 <RCC>
     <qresource prefix="/">
         <file alias="icon.png">icon.png</file>
-        <file alias="uuTrans.png">uuTrans.png</file>
     </qresource>
 </RCC>

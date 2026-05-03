@@ -771,13 +771,27 @@ QStringList MainWindow::getSelectedRemoteFileNames() {
 }
 
 void MainWindow::addToTransferQueue(const QStringList& files, const QString& direction) {
+    // 计算相对路径的基准目录（与 P2PTransfer 一致）
+    QString basePath = _transfer->basePath();
+
     for (const QString& path : files) {
         QFileInfo fi(path);
         if (!fi.exists() || !fi.isFile()) continue;
 
+        // 计算相对路径，与 P2PTransfer 的 _currentRelativePath 一致
+        QString relativePath;
+        if (!basePath.isEmpty() && path.startsWith(basePath)) {
+            relativePath = path.mid(basePath.length());
+        } else {
+            relativePath = fi.fileName();
+        }
+
         int row = _transferQueue->rowCount();
         _transferQueue->insertRow(row);
-        _transferQueue->setItem(row, 0, new QTableWidgetItem(fi.fileName()));
+        auto* nameItem = new QTableWidgetItem(fi.fileName());
+        nameItem->setToolTip(path);
+        nameItem->setData(Qt::UserRole, relativePath);  // 存储相对路径用于匹配
+        _transferQueue->setItem(row, 0, nameItem);
         _transferQueue->setItem(row, 1, new QTableWidgetItem(direction));
         _transferQueue->setItem(row, 2, new QTableWidgetItem(formatFileSize(
                                   static_cast<uint64_t>(fi.size()))));
@@ -796,12 +810,19 @@ void MainWindow::addToTransferQueue(const QStringList& files, const QString& dir
 }
 
 int MainWindow::findQueueRow(const QString& fileName) {
-    // 精确匹配
+    // 优先匹配 UserRole 中存储的相对路径
+    for (int r = 0; r < _transferQueue->rowCount(); ++r) {
+        QTableWidgetItem* item = _transferQueue->item(r, 0);
+        if (!item) continue;
+        QString relPath = item->data(Qt::UserRole).toString();
+        if (!relPath.isEmpty() && relPath == fileName) return r;
+    }
+    // 精确匹配显示文本
     for (int r = 0; r < _transferQueue->rowCount(); ++r) {
         QTableWidgetItem* item = _transferQueue->item(r, 0);
         if (item && item->text() == fileName) return r;
     }
-    // 后缀匹配：处理目录内文件（队列显示 file.txt，信号发 sub/file.txt）
+    // 后缀匹配
     for (int r = 0; r < _transferQueue->rowCount(); ++r) {
         QTableWidgetItem* item = _transferQueue->item(r, 0);
         if (item && fileName.endsWith(QStringLiteral("/") + item->text())) return r;

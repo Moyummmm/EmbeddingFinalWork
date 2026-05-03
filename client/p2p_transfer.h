@@ -29,6 +29,8 @@ public:
 
     // 设置相对路径基准目录（保持目录结构）
     void setBasePath(const QString& path) { _basePath = path; }
+    // 获取当前基准目录
+    QString basePath() const { return _basePath; }
 
     // 注入中转模式下收到的对端消息
     void injectRelayMessage(const std::string& jsonStr);

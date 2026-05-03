@@ -275,8 +275,12 @@ void P2PTransfer::sendNextFile() {
         return;
     }
 
-    // 设置当前文件信息
-    _currentRelativePath = fi.fileName();  // 协议中只使用文件名作为相对路径
+    // 设置当前文件信息：计算相对路径以保持目录结构
+    if (!_basePath.isEmpty() && filePath.startsWith(_basePath)) {
+        _currentRelativePath = filePath.mid(_basePath.length());
+    } else {
+        _currentRelativePath = fi.fileName();
+    }
     _currentFileSize = static_cast<uint64_t>(fi.size());
     _currentFileSent = 0;
     _currentAckOffset = 0;

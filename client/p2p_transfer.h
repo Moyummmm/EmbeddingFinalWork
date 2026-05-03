@@ -27,6 +27,9 @@ public:
     void startRelayTransfer(RegistryClient* registry, int relayId,
                             const QStringList& fileList);
 
+    // 设置相对路径基准目录（保持目录结构）
+    void setBasePath(const QString& path) { _basePath = path; }
+
     // 注入中转模式下收到的对端消息
     void injectRelayMessage(const std::string& jsonStr);
 
@@ -85,6 +88,9 @@ private:
     bool _relayMode = false;                // 是否处于服务器中转模式
     int _relayId = 0;                       // 中转会话 ID
     RegistryClient* _relayRegistry = nullptr; // 注册客户端（用于发送中转消息）
+
+    // 目录结构保持：相对路径的基准目录
+    QString _basePath;
 
     // 统一发送接口：根据模式选择直连或中转
     void sendJsonMessage(const std::string& jsonStr);

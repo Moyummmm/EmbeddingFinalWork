@@ -465,17 +465,31 @@ void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::strin
              << " files=" << filePaths.size();
 
     QStringList localFiles;
+    // 用于计算相对路径的基准目录（所有路径的公共父目录）
+    QString commonBase;
+
     for (const auto& fp : filePaths) {
         QString qfp = QString::fromStdString(fp);
         // 展开 ~ 为本机 home 目录
         if (qfp.startsWith(QStringLiteral("~/"))) {
             qfp = QDir::homePath() + qfp.mid(1);
         }
+
+        if (!commonBase.isEmpty()) {
+            // 已经设置，跳过
+        } else {
+            QFileInfo baseFi(qfp);
+            commonBase = baseFi.isDir() ? baseFi.absolutePath() : baseFi.absolutePath();
+        }
+
         QFileInfo fi(qfp);
-        if (fi.exists() && fi.isFile()) {
+        if (fi.exists() && fi.isDir()) {
+            // 展开目录，保留完整路径
+            localFiles.append(expandDirectory(qfp));
+        } else if (fi.exists() && fi.isFile()) {
             localFiles.append(qfp);
         } else {
-            qDebug() << "[MainWindow] pull_fwd: file not found:" << qfp;
+            qDebug() << "[MainWindow] pull_fwd: not found:" << qfp;
         }
     }
 
@@ -484,7 +498,11 @@ void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::strin
         return;
     }
 
-    // 保存文件列表，等待请求方 accept 后在 onTransferAccepted 中启动发送
+    // 设置基准目录以保持目录结构
+    if (!commonBase.isEmpty()) {
+        _transfer->setBasePath(commonBase.endsWith('/') ? commonBase : commonBase + QStringLiteral("/"));
+    }
+
     _pendingRelayFiles = localFiles;
     _relayTransferId = relayId;
 }
@@ -612,6 +630,10 @@ void MainWindow::onSendRight() {
 
     addToTransferQueue(allFiles, QStringLiteral("→ 发送"));
 
+    // 设置基准目录以保持目录结构（使用左栏当前目录）
+    QString localBase = _localModel->filePath(_localTree->rootIndex());
+    _transfer->setBasePath(localBase.endsWith('/') ? localBase : localBase + QStringLiteral("/"));
+
     _pendingRelayFiles = allFiles;
     _registry->sendTransferRequest(
         QString::fromStdString(_selectedPeer.ip),
@@ -738,9 +760,8 @@ QStringList MainWindow::getSelectedRemoteFileNames() {
     for (const QModelIndex& idx : selected) {
         if (idx.column() != 0) continue;
         QModelIndex nameIdx = idx.sibling(idx.row(), 0);
-        bool isDir = nameIdx.data(Qt::UserRole).toBool();
-        if (isDir) continue;  // 只选文件
         QString name = nameIdx.data(Qt::DisplayRole).toString();
+        if (name == QStringLiteral("..")) continue;  // 跳过 ..
         if (!seen.contains(name)) {
             seen.insert(name);
             names.append(name);

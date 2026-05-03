@@ -26,7 +26,7 @@
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
-    setWindowTitle(QStringLiteral("P2P 文件传输 — [未注册]"));
+    setWindowTitle(QStringLiteral("文件传输 — [未注册]"));
     setWindowIcon(QIcon(QStringLiteral(":/icon.png")));
     resize(1200, 700);
 
@@ -960,10 +960,10 @@ void MainWindow::onSendLeft() {
 
 void MainWindow::updateWindowTitle() {
     if (_registered) {
-        setWindowTitle(QStringLiteral("P2P 文件传输 — [%1]")
+        setWindowTitle(QStringLiteral("文件传输 — [%1]")
                        .arg(QString::fromStdString(_selfInfo.name)));
     } else {
-        setWindowTitle(QStringLiteral("P2P 文件传输 — [未注册]"));
+        setWindowTitle(QStringLiteral("文件传输 — [未注册]"));
     }
 }
 

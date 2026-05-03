@@ -318,6 +318,16 @@ void Server::process_message(int fd, const std::string& json_str) {
                           << " forwarding pull_fwd" << std::endl;
 
                 send_response(fd_it->second, fwd.dump());
+
+                // Also send transfer_fwd to requester so they set up receive mode
+                nlohmann::json tfwd;
+                tfwd["type"] = "transfer_fwd";
+                tfwd["relay_id"] = relay_id;
+                tfwd["file_count"] = static_cast<int>(file_paths.size());
+                if (j.contains("target_path")) {
+                    tfwd["target_path"] = j["target_path"];
+                }
+                send_response(fd, tfwd.dump());
             }
 
         } else if (type == "browse_request" || type == "browse") {

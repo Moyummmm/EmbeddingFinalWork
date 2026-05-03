@@ -10,9 +10,9 @@
 
 P2PServer::P2PServer(QObject* parent)
     : QObject(parent)
-    // 默认保存路径：~/P2P_Received/
+    // 默认保存路径：用户主目录（由 targetPath 动态覆盖）
     , _basePath(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-                + QStringLiteral("/P2P_Received/"))
+                + QStringLiteral("/"))
 {
 }
 

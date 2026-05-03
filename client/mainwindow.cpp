@@ -112,17 +112,18 @@ MainWindow::MainWindow(QWidget* parent)
     QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
     leftLayout->setContentsMargins(0, 0, 0, 0);
 
-    _localPathLabel = new QLabel(QStringLiteral("本机文件"));
+    _localPathLabel = new QLabel(QStringLiteral("本机: %1").arg(
+        QDir::homePath() + QStringLiteral("/Downloads")));
     _localPathLabel->setStyleSheet(QStringLiteral("font-weight: bold; padding: 4px;"));
     leftLayout->addWidget(_localPathLabel);
 
     _localModel = new QFileSystemModel(this);
-    _localModel->setRootPath(QDir::homePath());
+    _localModel->setRootPath(QDir::homePath() + QStringLiteral("/Downloads"));
     _localModel->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
 
     _localTree = new QTreeView();
     _localTree->setModel(_localModel);
-    _localTree->setRootIndex(_localModel->index(QDir::homePath()));
+    _localTree->setRootIndex(_localModel->index(QDir::homePath() + QStringLiteral("/Downloads")));
     _localTree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     _localTree->setColumnWidth(0, 250);
     for (int i = 1; i < _localModel->columnCount(); ++i) {
@@ -225,9 +226,7 @@ MainWindow::MainWindow(QWidget* parent)
     _transferQueue->setMaximumHeight(160);
     mainLayout->addWidget(_transferQueue);
 
-    _receivePathLabel = new QLabel(QStringLiteral("接收文件保存位置: ") +
-        QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-        + QStringLiteral("/P2P_Received/"));
+    _receivePathLabel = new QLabel(QStringLiteral("接收文件保存位置: 由对端栏当前目录决定"));
     _receivePathLabel->setStyleSheet(QStringLiteral("color: gray; font-size: 11px;"));
     _receivePathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     mainLayout->addWidget(_receivePathLabel);
@@ -444,10 +443,10 @@ void MainWindow::onTransferRelayMessage(int relayId, const std::string& payload)
     }
 }
 
-// 收到拉取请求：作为发送端，读取文件并通过中继发送回去
+// 收到拉取请求：作为发送端，保存文件列表等待 accept
 void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths,
                                        const QString& targetPath) {
-    Q_UNUSED(targetPath);  // pull_fwd 的 targetPath 由请求方设置，此处不需要
+    Q_UNUSED(targetPath);  // targetPath 用于接收端（请求方），此处不需要
     qDebug() << "[MainWindow] onPullForwardReceived: relayId=" << relayId
              << " files=" << filePaths.size();
 
@@ -467,10 +466,9 @@ void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::strin
         return;
     }
 
-    // 自动接受并通过中继发送文件
-    _registry->sendTransferAccept(relayId, true);
+    // 保存文件列表，等待请求方 accept 后在 onTransferAccepted 中启动发送
+    _pendingRelayFiles = localFiles;
     _relayTransferId = relayId;
-    _transfer->startRelayTransfer(_registry, relayId, localFiles);
 }
 
 // ============================================================
@@ -526,7 +524,8 @@ void MainWindow::onPeerComboChanged(int index) {
     _sendRightBtn->setEnabled(_registered);
     _sendLeftBtn->setEnabled(_registered);
 
-    _registry->sendBrowseRequest(ip, port, QString());
+    _registry->sendBrowseRequest(ip, port,
+        QDir::homePath() + QStringLiteral("/Downloads"));
 }
 
 // 收到远端目录列表

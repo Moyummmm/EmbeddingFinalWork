@@ -336,6 +336,7 @@ void MainWindow::onP2PFileReceived(const QString& savedPath) {
             it->bar->setFormat(QStringLiteral("100%"));
         }
     } else {
+        // 
         int row = _transferQueue->rowCount();
         _transferQueue->insertRow(row);
         QTableWidgetItem* nameItem = new QTableWidgetItem(fileName);

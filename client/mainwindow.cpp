@@ -512,8 +512,6 @@ MainWindow::~MainWindow() = default;
 void MainWindow::onRegisterClicked() {
     QString host = _serverIpEdit->text().trimmed();
     quint16 port = static_cast<quint16>(_serverPortSpin->value());
-    qDebug() << "[MainWindow] onRegisterClicked: host=" << host << " port=" << port
-             << " name=" << _nameEdit->text() << " p2pPort=" << _p2pPortSpin->value();
     _registry->connectToServer(host, port);
 }
 
@@ -530,7 +528,6 @@ void MainWindow::onRefreshClicked() {
 // ============================================================
 
 void MainWindow::onRegConnected() {
-    qDebug() << "[MainWindow] onRegConnected, registering as" << _nameEdit->text();
     _registry->registerPeer(_nameEdit->text().trimmed(),
                             static_cast<quint16>(_p2pPortSpin->value()));
 }
@@ -617,11 +614,11 @@ void MainWindow::onP2PFileReceived(const QString& savedPath) {
         _queueEntries[row] = QueueEntry{bar, nullptr};
     }
 
-    qDebug() << "[MainWindow] onP2PFileReceived:" << savedPath;
+    qDebug() << "[文件] 已接收:" << savedPath;
 }
 
 void MainWindow::onP2PTransferCompleted(int success, int failed) {
-    qDebug() << "[MainWindow] onP2PTransferCompleted: success=" << success << " failed=" << failed;
+    qDebug() << "[传输] 接收完成:" << success << "成功" << failed << "失败";
     statusBar()->showMessage(
         QStringLiteral("接收完成: %1 成功, %2 失败").arg(success).arg(failed), 10000);
     // 刷新远端目录以显示新文件
@@ -688,8 +685,6 @@ void MainWindow::onTransferError(const QString& message) {
 // ============================================================
 
 void MainWindow::onTransferForwardReceived(int relayId, int fileCount, const QString& targetPath) {
-    qDebug() << "[MainWindow] onTransferForwardReceived: relayId=" << relayId
-             << " fileCount=" << fileCount << " targetPath=" << targetPath;
     // 设置接收保存路径
     if (!targetPath.isEmpty()) {
         _p2pServer->setBasePath(targetPath.endsWith('/') ? targetPath : targetPath + QStringLiteral("/"));
@@ -699,8 +694,6 @@ void MainWindow::onTransferForwardReceived(int relayId, int fileCount, const QSt
 }
 
 void MainWindow::onTransferAccepted(int relayId, bool accepted) {
-    qDebug() << "[MainWindow] onTransferAccepted: relayId=" << relayId
-             << " accepted=" << accepted;
     if (accepted) {
         _relayTransferId = relayId;
         _transfer->startRelayTransfer(_registry, relayId, _pendingRelayFiles);
@@ -725,8 +718,6 @@ void MainWindow::onTransferRelayMessage(int relayId, const std::string& payload)
 void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::string>& filePaths,
                                        const QString& targetPath) {
     Q_UNUSED(targetPath);  // targetPath 用于接收端（请求方），此处不需要
-    qDebug() << "[MainWindow] onPullForwardReceived: relayId=" << relayId
-             << " files=" << filePaths.size();
 
     QStringList localFiles;
     // 用于计算相对路径的基准目录（所有路径的公共父目录）
@@ -753,12 +744,12 @@ void MainWindow::onPullForwardReceived(int relayId, const std::vector<std::strin
         } else if (fi.exists() && fi.isFile()) {
             localFiles.append(qfp);
         } else {
-            qDebug() << "[MainWindow] pull_fwd: not found:" << qfp;
+            qWarning() << "[拉取] 文件不存在:" << qfp;
         }
     }
 
     if (localFiles.isEmpty()) {
-        qDebug() << "[MainWindow] pull_fwd: no valid files to send";
+        qWarning() << "[拉取] 无有效文件可发送";
         return;
     }
 
@@ -792,8 +783,6 @@ void MainWindow::onRemoteItemDoubleClicked(const QModelIndex& index) {
 
     QString dirName = nameIndex.data(Qt::DisplayRole).toString();
     QString newPath = _remotePath + QStringLiteral("/") + dirName;
-
-    qDebug() << "[MainWindow] onRemoteItemDoubleClicked:" << dirName << " -> " << newPath;
 
     _remotePathLabel->setText(QStringLiteral("正在加载..."));
     _remoteModel->removeRows(0, _remoteModel->rowCount());
@@ -830,7 +819,6 @@ void MainWindow::onPeerComboChanged(int index) {
 
 // 收到远端目录列表
 void MainWindow::onRemoteListingReceived(const QString& path, const std::vector<DirEntry>& entries) {
-    qDebug() << "[MainWindow] onRemoteListingReceived:" << path << " entries=" << entries.size();
     _remotePath = path;
     _remoteEntries = entries;
     _remotePathLabel->setText(QStringLiteral("远端: %1").arg(path));

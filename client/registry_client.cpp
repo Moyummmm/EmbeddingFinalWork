@@ -25,14 +25,13 @@ RegistryClient::~RegistryClient() {
 // 连接到注册服务器
 void RegistryClient::connectToServer(const QString& host, quint16 port) {
     if (_state != State::Disconnected) {
-        qDebug() << "[RegistryClient] connectToServer: already in state" << static_cast<int>(_state) << ", ignoring";
         return;
     }
     _state = State::Connecting;
     _recvBuf.clear();
     // 绕过系统代理——原始 TCP 连接无法通过 HTTP 代理
     _socket->setProxy(QNetworkProxy::NoProxy);
-    qDebug() << "[RegistryClient] connecting to" << host << ":" << port;
+    qDebug() << "[注册] 连接服务器:" << host << ":" << port;
     _socket->connectToHost(host, port);
 }
 
@@ -46,7 +45,6 @@ void RegistryClient::disconnectFromServer() {
 // 向注册服务器注册本节点
 void RegistryClient::registerPeer(const QString& name, quint16 p2pPort) {
     if (_state != State::Connected) {
-        qDebug() << "[RegistryClient] registerPeer: not connected, state=" << static_cast<int>(_state);
         emit errorOccurred(QStringLiteral("未连接到注册服务器"));
         return;
     }
@@ -64,8 +62,6 @@ void RegistryClient::registerPeer(const QString& name, quint16 p2pPort) {
         j["ip"] = _localIp.toStdString();
     }
 
-    qDebug() << "[RegistryClient] registerPeer: name=" << name << " p2pPort=" << p2pPort
-             << " localIp=" << _localIp << " json=" << QString::fromStdString(j.dump());
     sendMessage(j.dump());
 }
 
@@ -104,9 +100,6 @@ void RegistryClient::unregisterPeer() {
 // 发送 JSON 消息（自动封装为帧后写入套接字）
 void RegistryClient::sendMessage(const std::string& jsonStr) {
     std::string frame = encode_frame(jsonStr);
-    qDebug() << "[RegistryClient] sendMessage: json_size=" << jsonStr.size()
-             << " frame_size=" << frame.size()
-             << " json=" << QString::fromStdString(jsonStr).left(300);
     _socket->write(frame.data(), static_cast<qint64>(frame.size()));
 }
 
@@ -122,15 +115,13 @@ void RegistryClient::onConnected() {
     _localIp = _socket->localAddress().toString();
     _localPort = _socket->localPort();
 
-    qDebug() << "[RegistryClient] connected! localIp=" << _localIp
-             << " localPort=" << _localPort
-             << " peer=" << _socket->peerAddress().toString() << ":" << _socket->peerPort();
+    qDebug() << "[注册] 已连接服务器";
     emit connected();
 }
 
 // TCP 连接断开
 void RegistryClient::onDisconnected() {
-    qDebug() << "[RegistryClient] disconnected, was state=" << static_cast<int>(_state);
+    qDebug() << "[注册] 服务器连接断开";
     _state = State::Disconnected;
     _pendingOp = Op::None;
     _recvBuf.clear();
@@ -142,7 +133,6 @@ void RegistryClient::onDisconnected() {
 // 经过 QString::fromUtf8/toStdString 往返会破坏 >=0x80 的字节（UTF-8 续接字节被替换为 U+FFFD）。
 void RegistryClient::onReadyRead() {
     QByteArray data = _socket->readAll();
-    qDebug() << "[RegistryClient] onReadyRead: received" << data.size() << "bytes, buf was" << _recvBuf.size();
     _recvBuf.append(data);
 
     // 循环解码：只要缓冲区中有完整帧就持续处理
@@ -156,8 +146,6 @@ void RegistryClient::onReadyRead() {
         }
         // 已消费的数据从缓冲区移除，继续尝试解码下一帧
         _recvBuf = QByteArray(buf.data(), static_cast<int>(buf.size()));
-        qDebug() << "[RegistryClient] decoded frame, payload_size=" << payload->size()
-                 << " remaining_buf=" << _recvBuf.size();
         processMessage(*payload);
     }
 }
@@ -165,7 +153,7 @@ void RegistryClient::onReadyRead() {
 // 套接字错误处理
 void RegistryClient::onSocketError(QAbstractSocket::SocketError /*error*/) {
     QString msg = _socket->errorString();
-    qDebug() << "[RegistryClient] socket error:" << msg << " state=" << static_cast<int>(_state);
+    qWarning() << "[注册] 连接错误:" << msg;
     _state = State::Disconnected;
     _pendingOp = Op::None;
     emit errorOccurred(msg);
@@ -176,10 +164,6 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
     try {
         auto j = nlohmann::json::parse(jsonStr);
         std::string type = j.at("type").get<std::string>();
-
-        qDebug() << "[RegistryClient] processMessage: type=" << QString::fromStdString(type)
-                 << " pendingOp=" << static_cast<int>(_pendingOp)
-                 << " json=" << QString::fromStdString(jsonStr).left(500);
 
         if (type == "register_ack") {
             // 注册确认：返回当前在线节点列表
@@ -209,9 +193,6 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             if (j.contains("entries")) {
                 entries = j["entries"].get<std::vector<DirEntry>>();
             }
-            qDebug() << "[RegistryClient] browse_response: path=" << QString::fromStdString(brPath)
-                     << " error=" << QString::fromStdString(brError)
-                     << " entries=" << entries.size();
             if (!brError.empty()) {
                 emit browseError(QString::fromStdString(brError));
             } else {
@@ -221,8 +202,6 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             // 收到服务器转发的浏览请求（来自其他客户端）
             std::string fwdPath = j.value("path", "");
             int reqId = j.value("req_id", 0);
-            qDebug() << "[RegistryClient] browse_fwd received: path=" << QString::fromStdString(fwdPath)
-                     << " req_id=" << reqId;
 
             // 读取本地文件系统并返回结果
             std::vector<DirEntry> entries;
@@ -238,9 +217,6 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             }
             QDir dir(QString::fromStdString(actualPath));
 
-            qDebug() << "[RegistryClient] browse_fwd: listing dir=" << QString::fromStdString(actualPath)
-                     << " exists=" << dir.exists();
-
             if (!dir.exists()) {
                 error = "Directory not found: " + actualPath;
             } else {
@@ -253,9 +229,6 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
                     entries.push_back(e);
                 }
             }
-
-            qDebug() << "[RegistryClient] browse_fwd: sending response, entries=" << entries.size()
-                     << " error=" << QString::fromStdString(error);
 
             // 通过服务器中转回送浏览结果，路径统一为 ~/ 相对格式
             std::string homeDir = QDir::homePath().toStdString();
@@ -280,16 +253,12 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
             } else {
                 targetPath = QString::fromStdString(rawPath);
             }
-            qDebug() << "[RegistryClient] transfer_fwd: relayId=" << relayId
-                     << " fileCount=" << fileCount << " targetPath=" << targetPath;
             emit transferForwardReceived(relayId, fileCount, targetPath);
 
         } else if (type == "transfer_accept") {
             // 收到传输接受/拒绝响应（作为发送端）
             int relayId = j.value("relay_id", 0);
             bool accepted = j.value("accepted", false);
-            qDebug() << "[RegistryClient] transfer_accept: relayId=" << relayId
-                     << " accepted=" << accepted;
             emit transferAccepted(relayId, accepted);
 
         } else if (type == "transfer_relay") {
@@ -306,16 +275,13 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
                 filePaths = j["file_paths"].get<std::vector<std::string>>();
             }
             QString targetPath = QString::fromStdString(j.value("target_path", std::string("")));
-            qDebug() << "[RegistryClient] pull_fwd: relayId=" << relayId
-                     << " files=" << filePaths.size() << " targetPath=" << targetPath;
             emit pullForwardReceived(relayId, filePaths, targetPath);
 
         } else {
-            qDebug() << "[RegistryClient] WARNING: unknown message type:" << QString::fromStdString(type);
+            qWarning() << "[注册] 未知消息类型:" << QString::fromStdString(type);
         }
     } catch (const std::exception& e) {
-        qDebug() << "[RegistryClient] processMessage EXCEPTION:" << e.what()
-                 << " json=" << QString::fromStdString(jsonStr).left(300);
+        qWarning() << "[注册] 消息解析异常:" << e.what();
         emit errorOccurred(QString::fromStdString(e.what()));
     }
 }
@@ -323,7 +289,6 @@ void RegistryClient::processMessage(const std::string& jsonStr) {
 // 通过注册服务器中转，向对端发送浏览请求
 void RegistryClient::sendBrowseRequest(const QString& targetIp, quint16 targetPort, const QString& path) {
     if (_state != State::Connected) {
-        qDebug() << "[RegistryClient] sendBrowseRequest: not connected!";
         emit browseError(QStringLiteral("未连接到注册服务器"));
         return;
     }
@@ -336,8 +301,6 @@ void RegistryClient::sendBrowseRequest(const QString& targetIp, quint16 targetPo
         j["path"] = path.toStdString();
     }
 
-    qDebug() << "[RegistryClient] sendBrowseRequest: target=" << targetIp << ":" << targetPort
-             << " path=" << path << " json=" << QString::fromStdString(j.dump());
     sendMessage(j.dump());
 }
 
@@ -378,8 +341,6 @@ void RegistryClient::sendTransferRequest(const QString& targetIp, quint16 target
         j["target_path"] = targetPath.toStdString();
     }
 
-    qDebug() << "[RegistryClient] sendTransferRequest: target=" << targetIp << ":" << targetPort
-             << " files=" << fileCount << " targetPath=" << targetPath;
     sendMessage(j.dump());
 }
 
@@ -392,7 +353,6 @@ void RegistryClient::sendTransferAccept(int relayId, bool accepted) {
     j["relay_id"] = relayId;
     j["accepted"] = accepted;
 
-    qDebug() << "[RegistryClient] sendTransferAccept: relayId=" << relayId << " accepted=" << accepted;
     sendMessage(j.dump());
 }
 
@@ -426,7 +386,5 @@ void RegistryClient::sendPullRequest(const QString& targetIp, quint16 targetPort
         j["target_path"] = targetPath.toStdString();
     }
 
-    qDebug() << "[RegistryClient] sendPullRequest: target=" << targetIp << ":" << targetPort
-             << " files=" << filePaths.size() << " targetPath=" << targetPath;
     sendMessage(j.dump());
 }

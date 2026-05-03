@@ -11,9 +11,30 @@
 
 #include "mainwindow.h"
 #include "p2p_server.h"
+#include "log.h"
 
 #ifdef _WIN32
 #include <windows.h>
+
+// 启用 Windows 终端 ANSI 转义序列支持
+static void enableAnsiColors() {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut != INVALID_HANDLE_VALUE) {
+        DWORD mode = 0;
+        if (GetConsoleMode(hOut, &mode)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(hOut, mode);
+        }
+    }
+    HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
+    if (hErr != INVALID_HANDLE_VALUE) {
+        DWORD mode = 0;
+        if (GetConsoleMode(hErr, &mode)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(hErr, mode);
+        }
+    }
+}
 
 // 检查当前进程是否以管理员权限运行
 static bool isRunAsAdmin() {
@@ -112,9 +133,11 @@ int main(int argc, char* argv[]) {
     // Windows 平台：尝试附加到父进程控制台，以便从 cmd/powershell 启动时能看到 printf/stderr 输出
 #ifdef _WIN32
     AttachConsole(ATTACH_PARENT_PROCESS);
+    enableAnsiColors();
 #endif
 
-    logStartup(QStringLiteral("=== P2P 客户端启动 ==="));
+    // 安装彩色日志处理函数
+    qInstallMessageHandler(coloredMessageHandler);
 
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("P2PFileTransfer"));

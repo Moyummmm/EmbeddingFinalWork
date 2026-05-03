@@ -42,14 +42,12 @@ void P2PServer::startRelayReceive(RegistryClient* registry, int relayId, int fil
 
     QDir().mkpath(_basePath);
 
-    qDebug() << "[P2PServer] startRelayReceive: relayId=" << relayId
-             << " fileCount=" << fileCount;
+    qDebug() << "[接收] 开始接收中转文件," << fileCount << "个";
     // 等待发送端的 push_hello 到达后再回复 push_ready
 }
 
 // 中转模式：注入收到的中转消息
 void P2PServer::injectRelayMessage(const std::string& jsonStr) {
-    qDebug() << "[P2PServer] injectRelayMessage, relayMode=" << _relayMode;
     if (_relayMode) {
         processSessionMessage(_relaySession, jsonStr);
     }
@@ -66,14 +64,14 @@ bool P2PServer::startListening(quint16 port) {
     connect(_server, &QTcpServer::newConnection, this, &P2PServer::onNewConnection);
 
     if (!_server->listen(QHostAddress::AnyIPv4, port)) {
-        qDebug() << "[P2PServer] listen FAILED on port" << port << ":" << _server->errorString();
+        qWarning() << "[接收] 监听失败:" << _server->errorString();
         emit errorOccurred(QStringLiteral("P2P 监听失败: ") + _server->errorString());
         _server->deleteLater();
         _server = nullptr;
         return false;
     }
 
-    qDebug() << "[P2PServer] listening on port" << _server->serverPort();
+    qDebug() << "[接收] 监听端口:" << _server->serverPort();
     emit listeningStarted(_server->serverPort());
     return true;
 }
@@ -121,9 +119,6 @@ void P2PServer::onNewConnection() {
         QTcpSocket* socket = _server->nextPendingConnection();
         if (!socket) continue;
 
-        qDebug() << "[P2PServer] new connection from" << socket->peerAddress().toString()
-                 << ":" << socket->peerPort();
-
         connect(socket, &QTcpSocket::readyRead, this, &P2PServer::onReadyRead);
         connect(socket, &QTcpSocket::disconnected, this, &P2PServer::onDisconnected);
 
@@ -143,8 +138,6 @@ void P2PServer::onReadyRead() {
 
     RecvSession& sess = it.value();
     QByteArray rawData = socket->readAll();
-    qDebug() << "[P2PServer] onReadyRead: received" << rawData.size() << "bytes from"
-             << socket->peerAddress().toString() << ":" << socket->peerPort();
 
     sess.recvBuf.append(QString::fromUtf8(rawData));
 
@@ -155,7 +148,6 @@ void P2PServer::onReadyRead() {
         auto payload = try_decode_frame(buf);
         if (!payload) break;
         sess.recvBuf = QString::fromStdString(buf);
-        qDebug() << "[P2PServer] decoded frame, payload_size=" << payload->size();
         processMessage(socket, *payload);
     }
 }
@@ -164,9 +156,6 @@ void P2PServer::onReadyRead() {
 void P2PServer::onDisconnected() {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
-
-    qDebug() << "[P2PServer] disconnected:" << socket->peerAddress().toString()
-             << ":" << socket->peerPort();
 
     auto it = _sessions.find(socket);
     if (it == _sessions.end()) return;
@@ -197,10 +186,6 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
     try {
         auto j = nlohmann::json::parse(jsonStr);
         std::string type = j.at("type").get<std::string>();
-
-        qDebug() << "[P2PServer] processSessionMessage: type=" << QString::fromStdString(type)
-                 << " relayMode=" << _relayMode
-                 << " json=" << QString::fromStdString(jsonStr).left(300);
 
         if (type == "push_hello") {
             // 收到推送握手：记录预期文件数，回复就绪确认
@@ -237,11 +222,10 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             delete sess.currentFileHash;
             sess.currentFileHash = new QCryptographicHash(QCryptographicHash::Sha256);
 
-            qDebug() << "[P2PServer] file_start: saving to" << fullPath << "size=" << fs.size;
+            qDebug() << "[接收] 开始接收:" << fullPath << "(" << fs.size << "字节)";
 
             if (!sess.currentFile->open(QIODevice::WriteOnly)) {
-                qDebug() << "[P2PServer] ERROR: cannot open file for writing:" << fullPath
-                         << "error=" << sess.currentFile->errorString();
+                qWarning() << "[接收] 无法写入文件:" << fullPath;
                 delete sess.currentFile;
                 sess.currentFile = nullptr;
                 delete sess.currentFileHash;
@@ -274,9 +258,6 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             sess.currentFileReceivedBytes += static_cast<uint64_t>(chunk.size());
             sess.currentFileHash->addData(chunk);
 
-            qDebug() << "[P2PServer] file_data: wrote" << chunk.size() << "bytes to"
-                     << sess.currentFilePath << "total=" << sess.currentFileReceivedBytes;
-
             FileAck ack;
             ack.path = fd.path;
             ack.offset = fd.offset + static_cast<uint64_t>(chunk.size());
@@ -288,9 +269,6 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
 
             if (sess.currentFile) {
                 sess.currentFile->close();
-                qDebug() << "[P2PServer] file_end: closed file" << sess.currentFilePath
-                         << "received" << sess.currentFileReceivedBytes << "bytes"
-                         << "expected" << sess.currentFileExpectedSize << "bytes";
                 delete sess.currentFile;
                 sess.currentFile = nullptr;
             }
@@ -304,24 +282,18 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
                 sess.currentFileHash = nullptr;
 
                 if (!remoteHash.isEmpty() && localHash != remoteHash) {
-                    qDebug() << "[P2PServer] CHECKSUM MISMATCH for" << sess.currentFilePath
-                             << "local=" << localHash << "remote=" << remoteHash;
+                    qWarning() << "[接收] 校验失败:" << sess.currentFilePath;
                     checksumOk = false;
-                } else {
-                    qDebug() << "[P2PServer] checksum OK for" << sess.currentFilePath;
                 }
             }
 
             if (fe.status == "ok" && checksumOk) {
                 sess.successCount++;
-                qDebug() << "[P2PServer] file saved:" << sess.currentFilePath;
+                qDebug() << "[接收] 文件已保存:" << sess.currentFilePath;
                 emit fileReceived(sess.currentFilePath);
             } else {
                 sess.failedCount++;
                 QFile::remove(sess.currentFilePath);
-                if (!checksumOk) {
-                    qDebug() << "[P2PServer] file removed due to checksum mismatch:" << sess.currentFilePath;
-                }
             }
 
             sess.completedFileCount++;
@@ -362,9 +334,6 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
                 ? QDir::homePath()
                 : QString::fromStdString(req.path);
 
-            qDebug() << "[P2PServer] list_request: requested_path=" << QString::fromStdString(req.path)
-                     << " resolved=" << browsePath;
-
             QDir dir(browsePath);
             if (!dir.exists()) {
                 resp.error = "目录未找到: " + req.path;
@@ -389,10 +358,10 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
             }
 
         } else {
-            qDebug() << "[P2PServer] WARNING: unknown message type:" << QString::fromStdString(type);
+            qWarning() << "[接收] 未知消息类型:" << QString::fromStdString(type);
         }
     } catch (const std::exception& e) {
-        qDebug() << "[P2PServer] processSessionMessage EXCEPTION:" << e.what();
+        qWarning() << "[接收] 消息解析异常:" << e.what();
         emit errorOccurred(QString::fromStdString(e.what()));
     }
 }

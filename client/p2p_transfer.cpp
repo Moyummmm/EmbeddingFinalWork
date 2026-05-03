@@ -41,14 +41,12 @@ void P2PTransfer::startRelayTransfer(RegistryClient* registry, int relayId,
                                       const QStringList& fileList)
 {
     if (_state != State::Idle) {
-        qDebug() << "[P2PTransfer] startRelayTransfer: not idle, state=" << static_cast<int>(_state);
         emit errorOccurred(QStringLiteral("传输已在进行中"));
         return;
     }
 
     _fileQueue = fileList;
     if (_fileQueue.isEmpty()) {
-        qDebug() << "[P2PTransfer] startRelayTransfer: empty file list";
         emit errorOccurred(QStringLiteral("没有可发送的文件"));
         return;
     }
@@ -61,8 +59,7 @@ void P2PTransfer::startRelayTransfer(RegistryClient* registry, int relayId,
     _relayRegistry = registry;
     _state = State::Handshake;
 
-    qDebug() << "[P2PTransfer] startRelayTransfer: relayId=" << relayId
-             << " files=" << fileList.size();
+    qDebug() << "[发送] 开始中转传输," << fileList.size() << "个文件";
 
     // 发送 push_hello
     PushHello hello;
@@ -72,7 +69,6 @@ void P2PTransfer::startRelayTransfer(RegistryClient* registry, int relayId,
 
 // 注入中转模式下收到的对端消息
 void P2PTransfer::injectRelayMessage(const std::string& jsonStr) {
-    qDebug() << "[P2PTransfer] injectRelayMessage, state=" << static_cast<int>(_state);
     processMessage(jsonStr);
 }
 
@@ -81,14 +77,12 @@ void P2PTransfer::startTransfer(const QString& peerIp, quint16 peerPort,
                                 const QStringList& fileList)
 {
     if (_state != State::Idle) {
-        qDebug() << "[P2PTransfer] startTransfer: not idle, state=" << static_cast<int>(_state);
         emit errorOccurred(QStringLiteral("传输已在进行中"));
         return;
     }
 
     _fileQueue = fileList;
     if (_fileQueue.isEmpty()) {
-        qDebug() << "[P2PTransfer] startTransfer: empty file list";
         emit errorOccurred(QStringLiteral("没有可发送的文件"));
         return;
     }
@@ -98,9 +92,6 @@ void P2PTransfer::startTransfer(const QString& peerIp, quint16 peerPort,
     _failedCount = 0;
     _state = State::Connecting;
     _relayMode = false;
-
-    qDebug() << "[P2PTransfer] startTransfer: target=" << peerIp << ":" << peerPort
-             << " files=" << fileList.size();
 
     // 绕过系统代理——原始 TCP 连接无法通过 HTTP 代理
     _socket->setProxy(QNetworkProxy::NoProxy);
@@ -130,8 +121,6 @@ void P2PTransfer::abort() {
 void P2PTransfer::onConnected() {
     _state = State::Handshake;
 
-    qDebug() << "[P2PTransfer] connected to peer, sending push_hello with" << _fileQueue.size() << "files";
-
     // 发送 push_hello，告知对端即将发送的文件数量
     PushHello hello;
     hello.count = _fileQueue.size();
@@ -140,7 +129,6 @@ void P2PTransfer::onConnected() {
 
 // 连接意外断开：标记当前文件失败，剩余文件全部标记为失败
 void P2PTransfer::onDisconnected() {
-    qDebug() << "[P2PTransfer] disconnected, state=" << static_cast<int>(_state);
     if (_state == State::Idle) return;  // 已经中止
 
     // 意外断开连接
@@ -165,7 +153,6 @@ void P2PTransfer::onDisconnected() {
 // 收到数据时，循环解码帧并处理
 void P2PTransfer::onReadyRead() {
     QByteArray data = _socket->readAll();
-    qDebug() << "[P2PTransfer] onReadyRead:" << data.size() << "bytes, buf=" << _recvBuf.size();
     _recvBuf.append(QString::fromUtf8(data));
 
     std::string buf = _recvBuf.toStdString();
@@ -184,7 +171,7 @@ void P2PTransfer::onSocketError(QAbstractSocket::SocketError /*error*/) {
     if (_state == State::Idle) return;
 
     QString msg = _socket->errorString();
-    qDebug() << "[P2PTransfer] socket error:" << msg;
+    qWarning() << "[发送] 连接错误:" << msg;
     _state = State::Idle;
 
     if (_currentFile && _currentFile->isOpen()) {
@@ -209,9 +196,6 @@ void P2PTransfer::processMessage(const std::string& jsonStr) {
     try {
         auto j = nlohmann::json::parse(jsonStr);
         std::string type = j.at("type").get<std::string>();
-
-        qDebug() << "[P2PTransfer] processMessage: type=" << QString::fromStdString(type)
-                 << " state=" << static_cast<int>(_state);
 
         if (type == "push_ready") {
             // 对端已准备好接收，开始发送文件
@@ -259,7 +243,7 @@ void P2PTransfer::sendNextFile() {
         TransferDone td;
         td.success = _successCount;
         td.failed = _failedCount;
-        qDebug() << "[P2PTransfer] all files done, sending transfer_done: success=" << _successCount << " failed=" << _failedCount;
+        qDebug() << "[发送] 传输完成:" << _successCount << "成功" << _failedCount << "失败";
         sendJsonMessage(nlohmann::json(td).dump());
         return;
     }
@@ -267,7 +251,7 @@ void P2PTransfer::sendNextFile() {
     QString filePath = _fileQueue[_fileIndex];
     _fileIndex++;
 
-    qDebug() << "[P2PTransfer] sendNextFile:" << filePath << " (" << _fileIndex << "/" << _fileQueue.size() << ")";
+    qDebug() << "[发送] 发送文件 (" << _fileIndex << "/" << _fileQueue.size() << "):" << filePath;
 
     // 检查文件是否存在
     QFileInfo fi(filePath);
@@ -316,13 +300,12 @@ void P2PTransfer::sendNextFile() {
 // 发送当前文件的一个数据块
 void P2PTransfer::sendFileChunk() {
     if (!_currentFile) {
-        qDebug() << "[P2PTransfer] sendFileChunk: no current file!";
+        qWarning() << "[发送] 无当前文件";
         return;
     }
 
     // 流量控制：等待接收端确认后再继续发送
     if (_currentFileSent > _currentAckOffset) {
-        qDebug() << "[P2PTransfer] sendFileChunk: flow control, sent=" << _currentFileSent << " ack=" << _currentAckOffset;
         return;  // 接收端尚未确认完之前的数据
     }
 
@@ -330,7 +313,6 @@ void P2PTransfer::sendFileChunk() {
     if (_currentFile->atEnd() && _currentFileSent >= _currentFileSize) {
         _currentFile->close();
 
-        qDebug() << "[P2PTransfer] sendFileChunk: file done, sending file_end for" << _currentRelativePath;
         _fileState = FileState::WaitingEnd;
         FileEnd fe;
         fe.path = _currentRelativePath.toStdString();

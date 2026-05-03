@@ -1,4 +1,5 @@
 #include "server.h"
+#include "log.h"
 #include <iostream>
 #include <cstdlib>
 #include <csignal>
@@ -16,8 +17,8 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         port = std::atoi(argv[1]);
         if (port <= 0 || port > 65535) {
-            std::cerr << "Invalid port: " << argv[1] << std::endl;
-            std::cerr << "Usage: " << argv[0] << " [port]" << std::endl;
+            LOG_ERR("无效端口: " << argv[1]);
+            LOG_INFO("用法: " << argv[0] << " [端口号]");
             return 1;
         }
     }
@@ -33,9 +34,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::cout << "Server listening on port " << port << std::endl;
+    LOG_INFO("服务器启动，监听端口 " << port);
     server.run();
-    std::cout << "Server stopped." << std::endl;
+    LOG_INFO("服务器已停止");
 
     return 0;
 }

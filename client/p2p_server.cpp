@@ -284,6 +284,8 @@ void P2PServer::processSessionMessage(RecvSession& sess, const std::string& json
                 if (!remoteHash.isEmpty() && localHash != remoteHash) {
                     qWarning() << "[接收] 校验失败:" << sess.currentFilePath;
                     checksumOk = false;
+                } else {
+                    qDebug() << "[接收] 校验通过:" << sess.currentFilePath;
                 }
             }
 
